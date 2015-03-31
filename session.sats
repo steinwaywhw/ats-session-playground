@@ -6,15 +6,27 @@ datasort process =
     | dual of process
     | nil of () 
     
-absvtype session (process)
+absvtype session (process) = ptr
 
-fun {a:vt@ype} send {p:process} (!session (snd (a, p)) >> session p, a): void 
-fun {a:vt@ype} receive {p:process} (!session (rcv (a, p)) >> session p): a
+//fun {a:vt@ype} send {p:process} (!session (snd (a, p)) >> session p, a): void 
+//fun {a:vt@ype} receive {p:process} (!session (rcv (a, p)) >> session p): a
+
+fun send {p:process} (!session (snd (string, p)) >> session p, string): void 
+fun receive {p:process} (!session (rcv (string, p)) >> session p): string
+
 
 fun wait (session nil): void 
 fun close (session nil): void
-fun create {p:process} (session (p) -<lincloptr1> void): session (dual p)
-fun connect {p:process} (session (p) -<lincloptr1> void): session (dual p)
+
+
+symintr create
+fun create_server {p:process} (session (p) -> void, address: string): void
+fun create_client {p:process} (session (p) -> void, address: string): void
+overload create with create_server 
+overload create with create_client
+
+
+
 
 ////
 cons (

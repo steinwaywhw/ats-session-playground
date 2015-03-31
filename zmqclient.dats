@@ -1,5 +1,6 @@
 #include "share/atspre_staload.hats"
-staload "/home/ubuntu/contrib/contrib/zeromq/SATS/zmq.sats"
+//staload "/home/ubuntu/contrib/contrib/zeromq/SATS/zmq.sats"
+staload "zmq.sats"
 
 
 implement main0 () = () where {
@@ -7,28 +8,38 @@ implement main0 () = () where {
   and minor: int
   and patch: int
   
-  fun loop (socket: !zmqsock1): void = () where {
-      var msg : zmqmsg_t
+  fun loop {l:addr | l>null} (socket: !zmq_socket_t l): void = () where {
+      var msg : zmq_msg_t
       
-      val () = zmq_msg_init_size_exn (msg, g1i2u 5)
-      val () = $extfcall (void, "memcpy", zmq_msg_data (msg), "hello", 5)
-      val _ = zmq_msg_send (msg, socket, 0)
-      val () = zmq_msg_close_exn (msg)
-      
-      val () = zmq_msg_init_exn (msg)
-      val _ = zmq_msg_recv_exn (msg, socket, 0)
+      val () = zmq_msg_init_size (msg, g1i2u 5)
+      val () = $extfcall (void, "memcpy", zmq_msg_data (msg), "hello\0", 6)
+      val s = zmq_msg_send (msg, socket, 0)
+      val () = println! ("errno = ", zmq_errno ())
+      val _ = assertloc (s = 5)
+      val () = zmq_msg_close (msg)
+
+      val () = zmq_msg_init (msg)
+      val _ = zmq_msg_recv (msg, socket, 0)
+      val () = println! ("errno = ", zmq_errno ())
       val _ = $extfcall (void, "printf", "%s", zmq_msg_data (msg))
-      val () = zmq_msg_close_exn (msg)
+      val () = zmq_msg_close (msg)
+
   }
   
   val () = zmq_version(major, minor, patch)
   val () = println! ("Installed ZeroMQ version: ", major, ".", minor, ".", patch)
-  
-  val ctx = zmq_ctx_new_exn ()
-  val stream = zmq_socket_exn (ctx, ZMQ_STREAM)
-  val () = zmq_connect_exn (stream, "tcp//localhost:8888")
+
+  val ctx = zmq_ctx_new()
+  val stream = zmq_socket (ctx, ZMQ_REQ)
+  val () = println! ("errno = ", zmq_errno ())
+
+  val rc = zmq_connect (stream, "tcp://localhost:9999")
+  val _ = assertloc (rc = 0)
+  val () = println! ("errno = ", zmq_errno ())
+
   val () = loop (stream)
   
-  val () = zmq_close_exn (stream)
-  val () = zmq_ctx_destroy_exn (ctx)
+
+  val () = zmq_close (stream)
+  val () = zmq_ctx_term (ctx)
 }

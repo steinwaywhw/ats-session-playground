@@ -1,8 +1,22 @@
 
 
+%{#
+#ifndef __ZMQ
+#define __ZMQ
+#include <zmq.h>
+#endif
+%}
 
-absvtype zmq_ctx_t (l:addr) = ptr 
+absvtype zmq_ctx_t    (l:addr) = ptr 
 absvtype zmq_socket_t (l:addr) = ptr 
+
+(*typedef union zmq_msg_t {unsigned char _ [64]; void *p; } zmq_msg_t;*)
+absvt@ype zmq_msg_t = $extype "zmq_msg_t"
+
+(*typedef void (zmq_free_fn) (void *data, void *hint);*)
+typedef zmq_free_fn = (ptr, ptr) -> void 
+
+(*****************************************************************************)
 
 (*
 ZMQ_EXPORT void *zmq_ctx_new (void);
@@ -12,13 +26,13 @@ ZMQ_EXPORT int zmq_ctx_set (void *context, int option, int optval);
 ZMQ_EXPORT int zmq_ctx_get (void *context, int option);
 *)
 
+fun zmq_ctx_new (): [l:addr | l>null] zmq_ctx_t l = "mac#"
+fun zmq_ctx_term     {l:addr | l>null} (zmq_ctx_t l): void = "mac#"
+fun zmq_ctx_shutdown {l:addr | l>null} (zmq_ctx_t l): void = "mac#"
+fun zmq_ctx_set      {l:addr | l>null} (!zmq_ctx_t l, int, int): void = "mac#"
+fun zmq_ctx_get      {l:addr | l>null} (!zmq_ctx_t l, int): int = "mac#"
 
-fun zmq_ctx_new (): [l:addr | l>null] zmq_ctx_t l 
-fun zmq_ctx_term {l:addr | l>null} (zmq_ctx_t l): void 
-fun zmq_ctx_shutdown {l:addr | l>null} (zmq_ctx_t l): void 
-fun zmq_ctx_set {l:addr | l>null} (!zmq_ctx_t l, int, int): void
-fun zmq_ctx_get {l:addr | l>null} (!zmq_ctx_t l, int): int 
-
+(*****************************************************************************)
 
 (*
 ZMQ_EXPORT int zmq_errno (void);
@@ -29,19 +43,16 @@ ZMQ_EXPORT const char *zmq_strerror (int errnum);
 ZMQ_EXPORT void zmq_version (int *major, int *minor, int *patch);
 *)
 
+fun zmq_errno (): int = "mac#"
+fun zmq_version (&int? >> _, &int? >> _, &int? >> _): void = "mac#"
 
 
-(*typedef union zmq_msg_t {unsigned char _ [64]; void *p; } zmq_msg_t;*)
-absvt@ype zmq_msg_t = $extype "zmq_msg_t"
-
-(*typedef void (zmq_free_fn) (void *data, void *hint);*)
-typedef zmq_free_fn = (ptr, ptr) -> void 
+(*****************************************************************************)
 
 (*
 ZMQ_EXPORT int zmq_msg_init (zmq_msg_t *msg);
 ZMQ_EXPORT int zmq_msg_init_size (zmq_msg_t *msg, size_t size);
-ZMQ_EXPORT int zmq_msg_init_data (zmq_msg_t *msg, void *data,
-    size_t size, zmq_free_fn *ffn, void *hint);
+ZMQ_EXPORT int zmq_msg_init_data (zmq_msg_t *msg, void *data, size_t size, zmq_free_fn *ffn, void *hint);
 ZMQ_EXPORT int zmq_msg_send (zmq_msg_t *msg, void *s, int flags);
 ZMQ_EXPORT int zmq_msg_recv (zmq_msg_t *msg, void *s, int flags);
 ZMQ_EXPORT int zmq_msg_close (zmq_msg_t *msg);
@@ -57,11 +68,20 @@ ZMQ_EXPORT int zmq_msg_set_routing_id(zmq_msg_t *msg, uint32_t routing_id);
 ZMQ_EXPORT uint32_t zmq_msg_get_routing_id(zmq_msg_t *msg);
 *)
 
-(*fun zmq_msg_init (&zmq_msg_t? >> _): void *)
-(*fun zmq_msg_init_size (&zmq_msg_t? >> _, size_t): void*)
-(*fun zmq_msg_init_data (&zmq_msg_t? >> _, ptr, size_t, zma_free_fn, ptr): void *)
-(*fun zmq_msg_send (&zmq_msg_t? >> _, !zmq_socket_t, int): size_t*)
-(*fun zmq_msg_*)
+fun zmq_msg_init 	  (&zmq_msg_t? >> _): void = "mac#" 
+fun zmq_msg_init_size (&zmq_msg_t? >> _, len: size_t): void = "mac#"
+fun zmq_msg_init_data (&zmq_msg_t? >> _, data: ptr, len: size_t, ffn: zmq_free_fn, hint: ptr): void = "mac#" 
+fun zmq_msg_send 	  {l:addr | l>null} (&zmq_msg_t, !zmq_socket_t l, flags: int): size_t = "mac#"
+fun zmq_msg_recv 	  {l:addr | l>null} (&zmq_msg_t >> _, !zmq_socket_t l, flags: int): size_t = "mac#"
+fun zmq_msg_close 	  (&zmq_msg_t >> _?): void = "mac#"
+fun zmq_msg_move	  (dest: &zmq_msg_t? >> _, src: &zmq_msg_t >> _?): void = "mac#"
+fun zmq_msg_copy 	  (dest: &zmq_msg_t? >> _, src: &zmq_msg_t): void = "mac#"
+fun zmq_msg_data 	  (&zmq_msg_t): [l:addr | l>null] ptr l = "mac#"
+fun zmq_msg_size 	  (&zmq_msg_t): size_t = "mac#"
+fun zmq_msg_more 	  (&zmq_msg_t): int = "mac#"
+ 
+
+(*****************************************************************************)
 
 (*
 ZMQ_EXPORT void *zmq_socket (void *, int type);
@@ -80,14 +100,18 @@ ZMQ_EXPORT int zmq_recv (void *s, void *buf, size_t len, int flags);
 ZMQ_EXPORT int zmq_socket_monitor (void *s, const char *addr, int events);
 *)
 
-fun zmq_socket {l:addr | l>null} (!zmq_ctx_t l, int): {m:addr | m>null} zmq_socket_t m
-fun zmq_close {l:addr | l>null} (zmq_socket_t l): void 
-fun zmq_setsockopt {l:addr | l>null} (!zmq_socket_t l, option: int, value: ptr, len: size_t): void
-fun zmq_getsockopt {l:addr | l>null} (!zmq_socket_t l, option: int, value: ptr, len: &size_t >> _): void 
-fun zmq_bind {l:addr | l>null} (!zmq_socket_t l, address: string): void 
-fun zmq_unbind {l:addr | l>null} (!zmq_socket_t l, address: string): void 
-fun zmq_connect {l:addr | l>null} (!zmq_socket_t l, address: string): void 
-fun zmq_disconnect {l:addr | l>null} (!zmq_socket_t l, address: string): void 
+fun zmq_socket     {l:addr | l>null} (!zmq_ctx_t l, int): [m:addr | m>null] zmq_socket_t m = "mac#"
+fun zmq_close      {l:addr | l>null} (zmq_socket_t l): void = "mac#"
+fun zmq_setsockopt {l:addr | l>null} (!zmq_socket_t l, option: int, value: ptr, len: size_t): void = "mac#"
+fun zmq_getsockopt {l:addr | l>null} (!zmq_socket_t l, option: int, value: ptr, len: &size_t >> _): void = "mac#"
+fun zmq_bind       {l:addr | l>null} (!zmq_socket_t l, address: string): int = "mac#"
+fun zmq_unbind     {l:addr | l>null} (!zmq_socket_t l, address: string): void = "mac#"
+fun zmq_connect    {l:addr | l>null} (!zmq_socket_t l, address: string): int = "mac#"
+fun zmq_disconnect {l:addr | l>null} (!zmq_socket_t l, address: string): void = "mac#"
+//fun zmq_send 	   {l:addr | l>null} {m:int} {n:int | n<=m} (!zmq_socket_t l, buf: &(@[byte][m]), len: size_t n, flags: int): int = "mac#"
+//fun zmq_recv 	   {l:addr | l>null} {m:int} {n:int | n<=m} (!zmq_socket_t l, buf: &(@[byte][m]), len: size_t n, flags: int): int = "mac#"
+
+(*****************************************************************************)
 
 
 // Context options  
