@@ -41,7 +41,7 @@ implement create_client {p} (fserv, addr) = () where {
 
 }
 
-implement send {p} (session, data) = () where {
+implement send_server {p} (session, data) = () where {
 
 	var msg : zmq_msg_t 
 	val x = $extfcall (size_t, "strlen", data)
@@ -54,7 +54,7 @@ implement send {p} (session, data) = () where {
 
 }
 
-implement receive {p} (session) = data where {
+implement receive_server {p} (session) = data where {
 
 	var msg : zmq_msg_t 
 	val () = zmq_msg_init (msg)
@@ -69,4 +69,8 @@ implement receive {p} (session) = data where {
 	val data = strptr2string (data)
 	val () = zmq_msg_close msg 
 }
+
+//implement send_client {p} (session) = () where {
+	
+//}
 
