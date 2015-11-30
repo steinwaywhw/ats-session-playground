@@ -1,12 +1,12 @@
 #include "share/atspre_staload.hats"
 
-staload "session.sats"
-staload "zmq.sats"
+staload "./session.sats"
+staload "czmq.sats"
 staload UN = "prelude/SATS/unsafe.sats"
 staload "libc/SATS/string.sats"
 staload _ = "libc/DATS/string.dats"
 
-vtypedef session_ctx = [m:addr|m>null] [n:addr|n>null] '{ctx=zmq_ctx_t m, sock=zmq_socket_t n}
+vtypedef session_ctx = [m:addr|m>null] '{sock = zsock_t m}
 assume session (p) = session_ctx
 
 
@@ -31,17 +31,21 @@ implement create_server {p} (fserv, addr) = () where {
 }
 
 implement create_client {p} (fserv, addr) = () where {
-	val ctx = zmq_ctx_new ()
-	val sock = zmq_socket (ctx, ZMQ_REQ)
-	val session = '{ctx=ctx, sock=sock}	val rc = zmq_connect (session.sock, addr)
-	//val _ = assertloc{int} (rc = 0)
+	val sock = zsock_new ZMQ_DEALER
+	val session = '{sock = sock}	
 
-	val s = $UN.castvwtp0{session (p)}(session)
+	val id0 = $extfcall (int, "randof", 0x10000)
+	val id1 = $extfcall (int, "randof", 0x10000)
+	val id = $extfcall (zstr_t, "zsys_sprintf", "%04X-%04X", id0, id1)
+
+	val _ = zsock_set_identity (sock, id)
+	val _ = zsock_connect (sock, addr)
+
+	val s = $UN.castvwtp0{session (p)} (session)
 	val () = fserv (s)
-
 }
 
-implement send_server {p} (session, data) = () where {
+implement send {p} (session, data) = () where {
 
 	var msg : zmq_msg_t 
 	val x = $extfcall (size_t, "strlen", data)
@@ -54,7 +58,7 @@ implement send_server {p} (session, data) = () where {
 
 }
 
-implement receive_server {p} (session) = data where {
+implement receive {p} (session) = data where {
 
 	var msg : zmq_msg_t 
 	val () = zmq_msg_init (msg)
@@ -69,8 +73,4 @@ implement receive_server {p} (session) = data where {
 	val data = strptr2string (data)
 	val () = zmq_msg_close msg 
 }
-
-//implement send_client {p} (session) = () where {
-	
-//}
 
