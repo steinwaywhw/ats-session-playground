@@ -1,6 +1,5 @@
 staload "session.sats"
 staload UN = "prelude/SATS/unsafe.sats"
-#define ATS_DYNLOADFLAG 0
 
 
 //extern praxi dual {p1,p2:type} (): DUAL (p1, p2)
@@ -17,27 +16,25 @@ end
 //}
 //%}
 
-val name = make_name {snd string :: rcv string :: wat()} ()
 
-extern fun server (): void 
-implement server () = let 
-	fun loop (ch: channel (snd string :: rcv string :: wat ())): void = let 
-		val _ = send (ch, "hello")
-		val ret = receive (ch)
-		val _ = println! ret
-	in 
-		wait ch 
-	end 
 
-in 
-	accept (name, llam ch => loop ch)
-end 
+
+
+
+
 
 extern fun client (): void 
 implement client () = let 
 
-	extern praxi dual (): DUAL (snd string :: rcv string :: wat (), rcv string :: snd string :: cls ())
+	extern praxi dual (): DUAL (snd string :: rcv string :: cls (), rcv string :: snd string :: cls ())
 	
+	prval pf1 = dual_base1 ()          (* cls <> cls *)
+	prval pf2 = dual_base2 {string} () (* snd string <> rcv string *)
+	prval pf3 = dual_comm pf2          (* rcv string <> snd string *)
+	prval pf = dual_ind2 (pf2, pf1)    (* snd :: cls <> rcv :: cls *)
+	prval pf = dual_ind2 (pf3, pf)     (* rcv :: snd :: cls <> snd :: rcv :: cls *)
+	prval pf = dual_comm pf       
+
 	fun loop (ch: channel (rcv string :: snd string :: cls ())): void = let 
 		val msg = receive (ch)
 		val _ = println! msg
@@ -46,14 +43,16 @@ implement client () = let
 		close ch 
 	end 
 
-	prval pf = dual ()
+	val name = make_name {snd string :: rcv string :: cls()} ("shared")
+
+//	prval pf = dual ()
 	val ch = request (pf | name)
 in 
 	loop ch 
 end 
 
-
-implement main0 () = () where {
+extern fun main0_erl (): void = "mac#"
+implement main0_erl () = () where {
 	val _ = client ()
 	val _ = server ()
 }

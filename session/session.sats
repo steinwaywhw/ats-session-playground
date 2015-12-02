@@ -1,6 +1,7 @@
 
 
 
+#define ATS_EXTERN_PREFIX "libsession_"
 
 
 
@@ -10,16 +11,15 @@ abstype name (type) = ptr
 abstype snd (vt@ype)
 abstype rcv (vt@ype)
 abstype cls ()
-abstype wat ()
 
 abstype seqs (type, type)
 //abstype dual (type)
-abstype rept (type)
+//abstype repl (type)
 abstype offr (type, type)
 abstype chse (type, type)
 
-abstype rqst (type)
-abstype acpt (type)
+//abstype rqst (type)
+//abstype acpt (type)
 
 
 #define :: seqs
@@ -36,31 +36,36 @@ praxi eq_tran: {p1,p2,p3:type} (EQ (p1, p2), EQ (p2, p3)) -> EQ (p1, p3)
 praxi dual_comm: {p1,p2:type} DUAL (p1, p2) -> DUAL (p2, p1)
 praxi dual_elim: {p1,p2,p3:type} (DUAL (p1, p2), DUAL (p2, p3)) -> EQ (p1, p3)
 
-praxi dual_base1: () -> DUAL (cls (), wat ())
+praxi dual_base1: () -> DUAL (cls (), cls ())
 praxi dual_base2: {a:vt@ype} () -> DUAL (snd a, rcv a)
 
 praxi dual_ind1: {p1,p2,q1,q2:type} (DUAL (p1, q1), DUAL (p2, q2)) -> DUAL (offr (p1, p2), chse (q1, q2))
-praxi dual_ind2: {p1,p2:type} DUAL (p1, p2) -> DUAL (rept p1, rept p2)
-praxi dual_ind3: {p1,p2,q1,q2:type} (DUAL (p1, q1), DUAL (p2, q2)) -> DUAL (seqs (p1, p2), seqs (q1, q2))
+//praxi dual_ind2: {p1,p2:type} DUAL (p1, p2) -> DUAL (repl p1, p2)
+praxi dual_ind2: {p1,p2,q1,q2:type} (DUAL (p1, q1), DUAL (p2, q2)) -> DUAL (seqs (p1, p2), seqs (q1, q2))
 //praxi dual_ind2: {p1,p2:type} DUAL (p1, p2) -> DUAL (rqst p1, acpt p2)
 
 fun dualof {p1,p2:type} (DUAL (p1, p2) | !channel p1 >> channel p2): void  
 
-fun make_name {p:type} (): name p
-fun request {p1,p2:type} (DUAL (p1, p2) | name p1): channel p2
-fun accept {p:type} (name p, channel p -<linclo1> void): void 
 
-fun send    {a:vt@ype} {p:type} (!channel (snd a :: p) >> channel p, a): void 
-fun receive {a:vt@ype} {p:type} (!channel (rcv a :: p) >> channel p): a 
+(*  
+   name is shared. and it is the server's pid plus some ref.
+   one could put accept in a loop, to achieve replicated service.
+   therefore, `repl` is not part of the session type.
+*)
+fun make_name {p:type} (string): name p = "mac#%"
+fun request {p1,p2:type} (DUAL (p1, p2) | name p1): channel p2 = "mac#%"
+fun accept {p:type} (name p, channel p -<linclo1> void): void = "mac#%" 
 
-fun unroll {p:type} (!channel (rept p) >> channel (p :: rept p)): void 
+fun send    {a:vt@ype} {p:type} (!channel (snd a :: p) >> channel p, a): void = "mac#%" 
+fun receive {a:vt@ype} {p:type} (!channel (rcv a :: p) >> channel p): a = "mac#%" 
 
-fun offer      {p,q:type} (channel (offr (p, q)), channel p -<linclo1> void, channel q -<linclo1> void): void 
-fun choose_fst {p,q:type} (!channel (chse (p, q)) >> channel p): void 
-fun choose_snd {p,q:type} (!channel (chse (p, q)) >> channel q): void 
+//fun replicate {p:type} (!channel (repl p), channel p -<linclo1> void): void 
 
-fun close (channel (cls ())): void 
-fun wait  (channel (wat ())): void 
+fun offer      {p,q:type} (channel (offr (p, q)), channel p -<linclo1> void, channel q -<linclo1> void): void = "mac#%" 
+fun choose_fst {p,q:type} (!channel (chse (p, q)) >> channel p): void = "mac#%" 
+fun choose_snd {p,q:type} (!channel (chse (p, q)) >> channel q): void = "mac#%" 
+
+fun close (channel (cls ())): void = "mac#%" 
 
 
 
