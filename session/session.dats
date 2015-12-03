@@ -1,6 +1,42 @@
 staload "session.sats"
 staload UN = "prelude/SATS/unsafe.sats"
 
+//implement make_name {p} (name) = let 
+//	val p = $UN.cast {name p} (the_null_ptr)
+//	val _ = $showtype p 
+//in 
+//	$extfcall (name p, "libsession_make_name", name)
+//end
+
+
+
+
+//implement offer {p,q} (ch, fn_a, fn_b) = let 
+// 	val unsafe = $UN.castvwtp1{channel(rcv int :: cls())} ch
+// 	val choice = receive unsafe
+// 	prval () = $UN.cast2void unsafe 
+//in 
+//	if choice = 0
+//	then 
+//		let 
+//			prval () = $UN.cast2void fn_b 
+//			val cont = $UN.castvwtp1{channel p} ch 
+//			prval () = $UN.cast2void ch
+//		in 
+//			fn_a cont
+//		end
+//	else 
+//		let 
+//			prval () = $UN.cast2void fn_a 
+//			val cont = $UN.castvwtp1{channel q} ch 
+//			prval () = $UN.cast2void ch
+//		in 
+//			fn_b cont
+//		end
+//end
+
+
+
 
 //extern praxi dual {p1,p2:type} (): DUAL (p1, p2)
 
@@ -9,6 +45,10 @@ implement dualof {p1,p2} (pf | ch) = let
 in 
 end 
 
+
+
+
+////
 //extern fun testchannel {p:type} (): channel p = "mac#"
 //%{
 //int testchannel () {

@@ -23,7 +23,7 @@ staload "contrib/libatscc/libatscc2erl/basics_erl.sats"
 
 extern fun server (): void = "mac#"
 implement server () = let 
-	fun loop (ch: channel (snd string :: rcv string :: cls ())): void = let 
+	fun case1 (ch: channel (snd string :: rcv string :: cls ())): void = let 
 		val _ = send (ch, "hello")
 		val ret = receive (ch)
 		val _ = println! ret
@@ -31,7 +31,18 @@ implement server () = let
 		close ch 
 	end 
 
-	val name = make_name {snd string :: rcv string :: cls()} ("shared")
+	fun case2 (ch: channel (snd int :: cls ())): void = let 
+		val _ = send (ch, 100)
+	in 
+		close ch 
+	end 
+
+	fun loop (ch: channel (offr (snd string :: rcv string :: cls (), snd int :: cls ()))): void = let 
+		val _ = offer (ch, llam ch => case1 ch, llam ch => case2 ch)
+	in 
+	end
+
+	val name = make_name {offr (snd string :: rcv string :: cls(), snd int :: cls ())} ("shared")
 
 in 
 	accept (name, llam ch => loop ch)

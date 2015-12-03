@@ -64,6 +64,18 @@ defmodule Channel do
 				receive do 
 					{:close, _, ^b} -> nil
 				end 
+
+			{:offer, requester, ^a} ->
+				send pid, {:offer, requester, a}
+				receive do 
+					{:choose, sender, ^b, choice} ->
+						send requester, {:choose, sender, choice}
+				end 
+				loop(pid, a, b)
+
+			{:choose, requester, ^a, choice} -> 
+				send pid, {:choose, requester, a, choice}
+				loop(pid, a, b)
 		end
 	end 
 
@@ -88,19 +100,46 @@ defmodule Channel do
 
 	def channel_send(channel, msg) do
 		{pid, ref} = channel 
-		IO.puts "Sending #{inspect msg} to #{inspect pid} as #{inspect ref}"
+		IO.puts "Sending #{inspect msg} to channel #{inspect pid} as #{inspect ref}"
 		send pid, {:send, self(), ref, msg}
 	end
 
 	def channel_receive(channel) do 
 		{pid, ref} = channel
-		IO.puts "Receiving from #{inspect pid} as #{inspect ref}"
+		IO.puts "Receiving from channel #{inspect pid} as #{inspect ref}"
 		send pid, {:receive, self(), ref}
 		receive do 
 			{:send, _, msg} -> 
 				IO.puts "Received #{inspect msg}"
 				msg
 		end 
+	end
+
+	def channel_offer(channel, fn_a, fn_b) do 
+		{pid, ref} = channel 
+		IO.puts "Offering choices to channel #{inspect pid} as #{inspect ref}"
+		send pid, {:offer, self(), ref}
+		receive do 
+			{:choose, _, choice} -> 
+				case choice do 
+					0 -> fn_a.(channel)
+					1 -> fn_b.(channel)
+				end 
+		end 
+	end
+
+	defp channel_choose(channel, choice) do 
+		{pid, ref} = channel 
+		IO.puts "Choosing #{inspect choice} to channel #{inspect pid} as #{inspect ref}"
+		send pid, {:choose, self(), ref, choice}
+	end 
+
+	def channel_choose_fst(channel) do 
+		channel_choose(channel, 0)
+	end 
+
+	def channel_choose_snd(channel) do 
+		channel_choose(channel, 1)
 	end
 
 	def channel_close(channel) do 

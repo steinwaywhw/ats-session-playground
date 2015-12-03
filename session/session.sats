@@ -44,6 +44,7 @@ praxi dual_ind1: {p1,p2,q1,q2:type} (DUAL (p1, q1), DUAL (p2, q2)) -> DUAL (offr
 praxi dual_ind2: {p1,p2,q1,q2:type} (DUAL (p1, q1), DUAL (p2, q2)) -> DUAL (seqs (p1, p2), seqs (q1, q2))
 //praxi dual_ind2: {p1,p2:type} DUAL (p1, p2) -> DUAL (rqst p1, acpt p2)
 
+
 fun dualof {p1,p2:type} (DUAL (p1, p2) | !channel p1 >> channel p2): void  
 
 
@@ -61,9 +62,9 @@ fun receive {a:vt@ype} {p:type} (!channel (rcv a :: p) >> channel p): a = "mac#%
 
 //fun replicate {p:type} (!channel (repl p), channel p -<linclo1> void): void 
 
-fun offer      {p,q:type} (channel (offr (p, q)), channel p -<linclo1> void, channel q -<linclo1> void): void = "mac#%" 
-fun choose_fst {p,q:type} (!channel (chse (p, q)) >> channel p): void = "mac#%" 
-fun choose_snd {p,q:type} (!channel (chse (p, q)) >> channel q): void = "mac#%" 
+fun offer      {p,q:type} (channel (offr (p, q)), channel p -<linclo1> void, channel q -<linclo1> void): void = "mac#%"
+fun choose_fst {p,q:type} (!channel (chse (p, q)) >> channel p): void = "mac#%"
+fun choose_snd {p,q:type} (!channel (chse (p, q)) >> channel q): void = "mac#%"
 
 fun close (channel (cls ())): void = "mac#%" 
 
