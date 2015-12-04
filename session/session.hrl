@@ -15,3 +15,5 @@ libsession_choose_fst(Channel)        -> 'Elixir.Channel':channel_choose_fst(Cha
 libsession_choose_snd(Channel)        -> 'Elixir.Channel':channel_choose_snd(Channel).
 
 libsession_close(Channel)             -> 'Elixir.Channel':channel_close(Channel).
+
+libsession_spawn_link(Clo)			  -> 'Elixir.Kernel':spawn_link(ats2erlpre_cloref2fun0(Clo)).

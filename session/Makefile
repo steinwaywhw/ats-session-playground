@@ -1,4 +1,5 @@
 PATSCC=patscc -ccats --tlcalopt-disable -IIATS ${PATSHOMERELOC}
+PATSCCTC=patscc -tcats -IIATS ${PATSHOMERELOC}
 ERLC=erlc +debug_info
 ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc 
 # session.erl: session.dats

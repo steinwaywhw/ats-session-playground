@@ -1,7 +1,5 @@
 #include "contrib/libatscc/libatscc2erl/staloadall.hats"
-
 staload "session.sats"
-staload "contrib/libatscc/libatscc2erl/basics_erl.sats"
 
 #define ATS_DYNLOADFLAG 0
 
