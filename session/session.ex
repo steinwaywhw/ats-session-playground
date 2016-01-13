@@ -1,42 +1,145 @@
 
+defmodule Message do 
+
+	def pack(label, pid, ref, payload) do 
+		{label, pid, ref, payload}
+	end 
+
+	def new_pid(msg, pid) do 
+		case msg do 
+			{label, _, ref, payload} -> {label, pid, ref, payload}
+		end 
+	end
+
+	# def new_ref(msg, ref) do 
+	# 	case msg do 
+	# 		{label, pid, _, payload} -> {label, pid, ref, payload}
+	# 	end
+	# end
+
+	# def packlite(label, pid, payload) do 
+		# {label, pid, payload}
+	# end 
+
+	def inspect(msg) do 
+		case msg do 
+			{label, pid, ref, payload} -> "#{Kernel.inspect label} #{Kernel.inspect payload} as #{Kernel.inspect ref}"
+			{label, pid, payload} -> "#{Kernel.inspect label} #{Kernel.inspect payload}"
+			_ -> "#{Kernel.inspect msg}"
+		end
+	end 
+
+	defmacro match(msg, action, ref) do 
+		quote do 
+			is_tuple(unquote(msg)) 
+			and elem(unquote(msg), 0) == unquote(action)
+			and elem(unquote(msg), 2) == unquote(ref)
+		end
+	end
+
+	# defmacro match(msg, action) do 
+		# quote do 
+			# is_tuple(unquote(msg))
+			# and elem(unquote(msg), 0) == unquote(action)
+		# end
+	# end  
+
+	def origin(msg) do 
+		case msg do 
+			{_, pid, _, _} -> pid 
+			# {_, pid, _} -> pid 
+		end
+	end 
+
+	def payload(msg) do 
+		case msg do 
+ 			{_, _, _, payload} -> payload 
+ 			# {_, _, payload} -> payload 
+		end
+	end 
+end
+
+
 defmodule Session do
+
+	
+	@doc """
+	Making a publicly shared name from a string.
+
+	Note that nodes should be pre-connected, otherwise names 
+	will be conflict.
+	"""
 	def make_name(name) do 
 		name = String.to_atom name
-		IO.puts "Making name: #{inspect name}"
+		# IO.puts :stderr, "Making name: #{inspect name}"
 
 		ret = :global.register_name(name, self())
-		IO.puts "Registering: #{inspect ret}"
+		# IO.puts :stderr, "Registering: #{inspect ret}"
 
 		name
 	end
 
-	def accept(name, f) do 
-		IO.puts "Listening on #{inspect name} by #{inspect self()}"
+	# def accept(name, f) do 
+	# 	IO.puts :stderr, "Listening on #{inspect name} by #{inspect self()}"
+	# 	receive do 
+	# 		{:request, requester, ^name} ->
+	# 			IO.puts :stderr, "Got request from #{inspect requester} on #{inspect name}"
+				
+	# 			[a, b] = Channel.channel_create()
+	# 			IO.puts :stderr, "New channel #{inspect a}, #{inspect b}"
+				
+	# 			pid = spawn_link fn -> f.(a) end
+	# 			IO.puts :stderr, "New thread #{inspect pid} running server code #{inspect f}"
+				
+	# 			IO.puts :stderr, "Sending channel #{inspect b} to #{inspect requester}"
+	# 			send requester, {:accepted, b}
+	# 	end 
+	# end 
+
+ 
+	@doc """
+	Accept a connection request to a shared name.
+
+	It creates two processes as two ends of a channel. Then it sends
+	one end to the requester, and return the other end to the caller. 
+	"""
+	def accept(name) do 
+		# IO.puts :stderr, "Listening on #{inspect name} by #{inspect self()}"
 		receive do 
 			{:request, requester, ^name} ->
-				IO.puts "Got request from #{inspect requester} on #{inspect name}"
+				# IO.puts :stderr, "Got request from #{inspect requester} on #{inspect name}"
+				IO.puts :stderr, "-> #{inspect {:request, requester, name}}"
 				
 				[a, b] = Channel.channel_create()
-				IO.puts "New channel #{inspect a}, #{inspect b}"
+				IO.puts :stderr, "New channel #{inspect a}, #{inspect b}"
 				
-				pid = spawn_link fn -> f.(a) end
-				IO.puts "New thread #{inspect pid} running server code #{inspect f}"
+				# pid = spawn_link fn -> f.(a) end
+				# IO.puts :stderr, "New thread #{inspect pid} running server code #{inspect f}"
 				
-				IO.puts "Sending channel #{inspect b} to #{inspect requester}"
+				# IO.puts :stderr, "Sending channel #{inspect b} to #{inspect requester}"
 				send requester, {:accepted, b}
+				IO.puts :stderr, "#{inspect requester} <- #{inspect {:accepted, b}}"
 		end 
-	end 
 
-	def request(name) do 
-		IO.puts "Requesting #{inspect name} from #{inspect self()}"
-		
+		# return created channel 
+		a
+	end  
+	
+
+	@doc """
+	Requesting a connection to a shared name.
+
+	It will look up a name, sending a request, and waiting to receive 
+	one end of the channel.
+	"""
+	def request(name) do 		
 		server = :global.whereis_name name 
-		IO.puts "Server is at #{inspect server}, sending request"
 		
+		IO.puts :stderr, "#{inspect server} <- #{inspect {:request, self(), name}}"
 		send server, {:request, self(), name}
 		receive do 
 			{:accepted, channel} -> 
-				IO.puts "Accepted, channel: #{inspect channel}"
+				IO.puts :stderr, "-> #{inspect {:accepted, channel}}"
 				channel
 		end 
 	end
@@ -44,94 +147,330 @@ end
 
 defmodule Channel do 
 	
+	require Message
 
-	defp loop(pid, a, b) do 
-		receive do 
-			{:send, requester, ^a, msg} -> 
-				send pid, {:send, requester, a, msg}
-				loop(pid, a, b)
+	@doc """
+	The main channel loop.
 
-			{:receive, requester, ^a} -> 
-				IO.puts "Got receving request from #{inspect requester} as #{inspect a}"
+	* `self`: this end's ref
+	* `pid`: the other end's pid 
+	* `other`: the other end's ref
+	"""
+	defp loop(self, pid, other) do 
+
+		receive do
+
+		 # 	#
+			# # send
+			# # 
+			# msg when Message.match(msg, :send, self) ->
+			# 	IO.puts :stderr, "-> #{Message.inspect msg}"
+
+			# 	IO.puts :stderr, "#{inspect pid} <- #{Message.inspect msg}"
+			# 	send pid, msg 
+
+			# 	loop(self, pid, other)
+
+			#
+			# other's receive
+			#
+			msg when Message.match(msg, :receive, other) ->
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+
 				receive do 
-					{:send, sender, ^b, msg} ->
-						send requester, {:send, sender, msg}
-				end 
-				loop(pid, a, b)
+					# self send
+					snd when Message.match(snd, :send, self) -> 
+						IO.puts :stderr, "-> #{Message.inspect snd}"
 
-			{:close, requester, ^a} ->
-				send pid, {:close, requester, a}
+						IO.puts :stderr, "#{inspect pid} <- #{Message.inspect snd}"
+						send pid, snd
+
+						loop(self, pid, other)
+
+					# self link
+					# forward to other end then terminate
+					link when Message.match(link, :link, self) ->
+						IO.puts :stderr, "-> #{Message.inspect link}"
+
+						IO.puts :stderr, "#{inspect pid} <- #{Message.inspect link}"
+						send pid, link
+				end 
+
+			#
+			# self receive
+			# 
+			msg when Message.match(msg, :receive, self) ->
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+
+				IO.puts :stderr, "#{inspect pid} <- #{Message.inspect msg}"
+				send pid, msg
+
 				receive do 
-					{:close, _, ^b} -> nil
+					# other's send
+					reply when Message.match(reply, :send, other) ->
+						IO.puts :stderr, "-> #{Message.inspect reply}"
+
+						IO.puts :stderr, "#{inspect Message.origin(msg)} <- #{Message.inspect reply}"
+						send Message.origin(msg), reply
+
+						loop(self, pid, other)
+
+					# other's link
+					# replay current message 
+					link when Message.match(link, :link, other) ->
+						IO.puts :stderr, "-> #{Message.inspect link}"
+
+						IO.puts :stderr, "#{inspect self()} <- #{Message.inspect msg}"
+						send self(), msg
+
+						{newpid, newother} = Message.payload link 
+						loop(self, newpid, newother)
 				end 
 
-			{:offer, requester, ^a} ->
-				send pid, {:offer, requester, a}
+
+			#
+			# close
+			# 
+			msg when Message.match(msg, :close, self) ->
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+
+				IO.puts :stderr, "#{inspect pid} <- #{Message.inspect msg}"
+				send pid, msg
+
 				receive do 
-					{:choose, sender, ^b, choice} ->
-						send requester, {:choose, sender, choice}
+					msg when Message.match(msg, :close, other) ->
+						IO.puts :stderr, "-> #{Message.inspect msg}"
+						nil
 				end 
-				loop(pid, a, b)
 
-			{:choose, requester, ^a, choice} -> 
-				send pid, {:choose, requester, a, choice}
-				loop(pid, a, b)
+
+			# 
+			# other's offer
+			# 
+			msg when Message.match(msg, :offer, other) -> 
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+
+				receive do 
+					# self choice
+					choice when Message.match(choice, :choose, self) -> 
+						IO.puts :stderr, "-> #{Message.inspect choice}"
+
+						IO.puts :stderr, "#{inspect pid} <- #{Message.inspect choice}"
+						send pid, choice
+						
+						loop(self, pid, other)
+
+					# self link
+					# forward link then terminate
+					link when Message.match(link, :link, self) -> 
+						IO.puts :stderr, "-> #{Message.inspect link}"
+
+						IO.puts :stderr, "#{inspect pid} <- #{Message.inspect link}"
+						send pid, link 
+				end 
+
+
+
+			#
+			# self offer
+			# 
+			msg when Message.match(msg, :offer, self) ->
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+
+				IO.puts :stderr, "#{inspect pid} <- #{Message.inspect msg}"
+				send pid, msg
+
+				receive do 
+					# other's choice
+					reply when Message.match(reply, :choose, other) ->
+						IO.puts :stderr, "-> #{Message.inspect reply}"
+
+						IO.puts :stderr, "#{Message.origin msg} <- #{Message.inspect reply}"
+						send Message.origin(msg), reply
+
+						loop(self, pid, other)
+
+					# other's link 
+					# replay current message
+					link when Message.match(link, :link, other) -> 
+						IO.puts :stderr, "-> #{Message.inspect link}"
+
+						IO.puts :stderr, "#{inspect self()} <- #{Message.inspect msg}"
+						send self(), msg 
+
+						{newpid, newother} = Message.payload link 
+						loop(self, newpid, newother) 			
+				end 
+
+
+			# #
+			# # choose
+			# # 
+			# msg when Message.match(msg, :choose, self) ->
+			# 	IO.puts :stderr, "-> #{Message.inspect msg}"
+
+			# 	IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+			# 	send pid, msg
+
+			# 	loop(self, pid, other)
+ 
+
+			#
+			# meta_reinit
+			# 
+			# msg when Message.match(msg, :meta_reinit, self) ->
+				# IO.puts :stderr, "-> #{Message.inspect msg}"
+# 
+				# {newself, newpid, newother} = Message.payload msg 
+				# loop(newself, newpid, newother)
+
+			# 
+			# link
+			#
+			# msg when Message.match(msg, :link, self) ->
+				# IO.puts :stderr, "-> #{Message.inspect msg}"
+ 
+				# {newself, newpid, newother, as} = Message.payload msg
+
+				# out = Message.pack(:meta_reinit, Message.origin(msg), self, {newself, newpid, newother})				
+				# # IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+				# # send pid, out 
+
+				# forward_all(newpid, as)
 		end
 	end 
 
+
+	# defp forward_all(to, as) do 
+	# 	# {_, len} = :erlang.process_info(self(), :message_queue_len)
+	# 	# if len > 0 do 
+	# 		receive do 
+	# 			{label, pid, ref, payload} -> 
+	# 				IO.puts :stderr, "FORWARDING -> #{inspect label} #{inspect payload}"
+
+	# 				out = Message.pack(label, pid, as, payload)
+	# 				send to, out
+	# 				IO.puts :stderr, "FORWARDING #{inspect to} <- #{Message.inspect out} as #{inspect as}"
+	# 		end 
+	# 		forward_all(to, as)
+	# 	# end 
+	# end
+
 	defp init() do 
 		receive do 
-			{:init, pid, a, b} -> loop(pid, a, b)
+			{:init, _, {self, pid, other}} ->
+				IO.puts :stderr, "-> :init"
+				loop(self, pid, other)
 		end 
 	end 
 
-	def channel_create() do 
+	@doc """
+	Create a channel represented by two of its ends.
+
+	Every channel has two ends, and two refs. 
+	Every end runs in its own thread.
+	Channel is `{self_pid, self_ref, other_end_ref}`
+	"""
+	def channel_create() do
+
+		# make two refs and two ends of the channel 
 		ref_a = make_ref()
 		ref_b = make_ref()
 		pid_a = spawn_link fn -> init() end
 		pid_b = spawn_link fn -> init() end
+		
+		to_a = {:init, self(), {ref_a, pid_b, ref_b}}
+		to_b = {:init, self(), {ref_b, pid_a, ref_a}}
 
-		send pid_a, {:init, pid_b, ref_a, ref_b}
-		send pid_b, {:init, pid_a, ref_b, ref_a}
+		IO.puts :stderr, "#{inspect pid_a} <- #{inspect to_a}"
+		IO.puts :stderr, "#{inspect pid_b} <- #{inspect to_b}"
+		
+		send pid_a, to_a
+		send pid_b, to_b
 
-		# return two ends of the channel
-		[{pid_a, ref_a}, {pid_b, ref_b}]
+		# return two ends and refs of the channel
+		[{pid_a, ref_a, ref_b}, {pid_b, ref_b, ref_a}]
 	end
 
+	@doc """
+	Send a message through this end of the channel.
+	"""
 	def channel_send(channel, msg) do
-		{pid, ref} = channel 
-		IO.puts "Sending #{inspect msg} to channel #{inspect pid} as #{inspect ref}"
-		send pid, {:send, self(), ref, msg}
+		{pid, ref, other} = channel 
+		 
+		out = Message.pack(:send, self(), ref, msg)
+		IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+		send pid, out
 	end
 
+	@doc """
+	Receive a message from this end of the channel.
+
+	This is done by sending a `{:receive}` message to this end of the channel.
+	"""
 	def channel_receive(channel) do 
-		{pid, ref} = channel
-		IO.puts "Receiving from channel #{inspect pid} as #{inspect ref}"
-		send pid, {:receive, self(), ref}
+		{pid, ref, other} = channel
+
+		out = Message.pack(:receive, self(), ref, nil)
+		IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+		send pid, out
+		
 		receive do 
-			{:send, _, msg} -> 
-				IO.puts "Received #{inspect msg}"
-				msg
+			# send
+			msg when Message.match(msg, :send, other) -> 
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+				Message.payload msg
 		end 
 	end
 
+	@doc """
+	Offering a choice.
+
+	1. Send a `{:offer}` to this end of the channel.
+	2. It will be forwarded to the other end.
+	3. The other end will send a `{:choose}` back.
+	4. Now we will receive the `{:choose}` from this end of the channel.
+	"""
 	def channel_offer(channel, fn_a, fn_b) do 
-		{pid, ref} = channel 
-		IO.puts "Offering choices to channel #{inspect pid} as #{inspect ref}"
-		send pid, {:offer, self(), ref}
+		{pid, ref, other} = channel 
+
+		out = Message.pack(:offer, self(), ref, nil)
+		IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+		send pid, out	
+
 		receive do 
-			{:choose, _, choice} -> 
-				case choice do 
+			msg when Message.match(msg, :choose, other) ->
+				IO.puts :stderr, "-> #{Message.inspect msg}"
+
+				case Message.payload(msg) do 
 					0 -> fn_a.(channel)
 					1 -> fn_b.(channel)
 				end 
 		end 
 	end
 
+
+	@doc """
+	Link two channels dual ends, as bidirectional forwarding.
+	"""
+	def channel_link(channel_a, channel_b) do 
+		{pid_a, ref_a, ref_a_other} = channel_a 
+		{pid_b, ref_b, ref_b_other} = channel_b
+
+		to_a = Message.pack(:link, self(), ref_a, {ref_a_other, pid_b_other, ref_b_other, ref_b})
+		IO.puts :stderr, "#{inspect pid_a} <- #{Message.inspect to_a}"
+		send pid_a, to_a
+
+		to_b = Message.pack(:link, self(), ref_b, {ref_b_other, pid_a_other, ref_a_other, ref_a})
+		IO.puts :stderr, "#{inspect pid_b} <- #{Message.inspect to_b}"
+		send pid_b, to_b
+	end
+
 	defp channel_choose(channel, choice) do 
-		{pid, ref} = channel 
-		IO.puts "Choosing #{inspect choice} to channel #{inspect pid} as #{inspect ref}"
-		send pid, {:choose, self(), ref, choice}
+		{pid, ref, _} = channel 
+		out = Message.pack(:choose, self(), ref, choice)
+		IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+		send pid, out
 	end 
 
 	def channel_choose_fst(channel) do 
@@ -143,8 +482,10 @@ defmodule Channel do
 	end
 
 	def channel_close(channel) do 
-		{pid, ref} = channel 
-		send pid, {:close, self(), ref}
+		{pid, ref, _} = channel 
+		out = Message.pack(:close, self(), ref, nil)
+		IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+		send pid, out 
 	end
 end 
 

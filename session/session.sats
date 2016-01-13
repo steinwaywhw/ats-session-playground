@@ -4,14 +4,6 @@
 staload "contrib/libatscc/libatscc2erl/basics_erl.sats"
 
 
-datatype rtchannel (type) = 
-| rtcls (cls()) of ()
-| {a:t@ype} rtsnd (snd a) of ()
-| {a:t@ype} rtrcv (rcv a) of ()
-| {p:type} rtrept (rept p) of (rtchannel p)
-| {p,q:type} rtseqs (seqs (p, q)) of (rtchannel p, rtchannel q)
-| {p,q:type} rtoffr (offr (p, q)) of (rtchannel p, rtchannel q)
-| {p,q:type} rtchse (chse (p, q)) of (rtchannel p, rtchannel q)
 
 absvtype channel (type) = ptr
 abstype name (type) = ptr 
@@ -29,6 +21,14 @@ abstype chse (type, type)
 
 //abstype rqst (type)
 //abstype acpt (type)
+//datatype rtchannel (type) = 
+//| rtcls (cls()) of ()
+//| {a:t@ype} rtsnd (snd a) of ()
+//| {a:t@ype} rtrcv (rcv a) of ()
+//| {p:type} rtrept (rept p) of (rtchannel p)
+//| {p,q:type} rtseqs (seqs (p, q)) of (rtchannel p, rtchannel q)
+//| {p,q:type} rtoffr (offr (p, q)) of (rtchannel p, rtchannel q)
+//| {p,q:type} rtchse (chse (p, q)) of (rtchannel p, rtchannel q)
 
 
 #define :: seqs
@@ -62,16 +62,18 @@ fun dualof {p1,p2:type} (DUAL (p1, p2) | !channel p1 >> channel p2): void
    one could put accept in a loop, to achieve replicated service.
    therefore, `repl` is not part of the session type.
 *)
-fun make_name {p:type} (string, rtchannel p): name p = "mac#%"
+//fun make_name {p:type} (string, rtchannel p): name p = "mac#%"
+fun make_name {p:type} (string): name p = "mac#%"
 fun request {p1,p2:type} (DUAL (p1, p2) | name p1): channel p2 = "mac#%"
 fun accept {p:type} (name p): channel p = "mac#%" 
+fun accept_link {p,q:type} (DUAL (p, q) | name p, channel q): void = "mac#%"
 
 fun send    {a:vt@ype} {p:type} (!channel (snd a :: p) >> channel p, a): void = "mac#%" 
 fun receive {a:vt@ype} {p:type} (!channel (rcv a :: p) >> channel p): a = "mac#%" 
 
 //fun replicate {p:type} (!channel (repl p), channel p -<linclo1> void): void 
 
-fun repeat {p:type} (!channel (rept a) >> channel (a :: rept a)): void = "mac#%"
+fun repeat {p,a:type} (!channel (rept a) >> channel (a :: rept a)): void = "mac#%"
 
 fun offer      {p,q:type} (channel (offr (p, q)), channel p -<linclo1> void, channel q -<linclo1> void): void = "mac#%"
 fun choose_fst {p,q:type} (!channel (chse (p, q)) >> channel p): void = "mac#%"
@@ -81,7 +83,9 @@ fun close (channel (cls ())): void = "mac#%"
 
 fun spawn_link (() -<cloref1> void): pid = "mac#%"
 
+//fun link {p,q:type} (DUAL (p, q) | channel p, channel q): void = "mac#%"
 
+fun muldisj {p,q:type} (!channel (snd (channel p) :: q) >> channel q, channel p): void
 
 ////
 fun make_name {p:type} (string): name (acpt p)
