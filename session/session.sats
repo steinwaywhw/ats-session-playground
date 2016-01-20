@@ -66,7 +66,7 @@ fun dualof {p1,p2:type} (DUAL (p1, p2) | !channel p1 >> channel p2): void
 fun make_name {p:type} (string): name p = "mac#%"
 fun request {p1,p2:type} (DUAL (p1, p2) | name p1): channel p2 = "mac#%"
 fun accept {p:type} (name p): channel p = "mac#%" 
-fun accept_link {p,q:type} (DUAL (p, q) | name p, channel q): void = "mac#%"
+//fun accept_link {p,q:type} (DUAL (p, q) | name p, channel q): void = "mac#%"
 
 fun send    {a:vt@ype} {p:type} (!channel (snd a :: p) >> channel p, a): void = "mac#%" 
 fun receive {a:vt@ype} {p:type} (!channel (rcv a :: p) >> channel p): a = "mac#%" 
@@ -83,7 +83,7 @@ fun close (channel (cls ())): void = "mac#%"
 
 fun spawn_link (() -<cloref1> void): pid = "mac#%"
 
-//fun link {p,q:type} (DUAL (p, q) | channel p, channel q): void = "mac#%"
+fun link {p,q:type} (DUAL (p, q) | channel p, channel q): void = "mac#%"
 
 fun muldisj {p,q:type} (!channel (snd (channel p) :: q) >> channel q, channel p): void
 
