@@ -289,7 +289,7 @@ defmodule Channel do
 					reply when Message.match(reply, :choose, other) ->
 						IO.puts :stderr, "-> #{Message.inspect reply}"
 
-						IO.puts :stderr, "#{Message.origin msg} <- #{Message.inspect reply}"
+						IO.puts :stderr, "#{inspect Message.origin(msg)} <- #{Message.inspect reply}"
 						send Message.origin(msg), reply
 
 						loop(self, pid, other)
@@ -354,7 +354,7 @@ defmodule Channel do
 								IO.puts :stderr, "-> #{Message.inspect any}"
 								
 								{targetpid, _} = Message.payload reply
-								IO.puts :stderr, "#{Message.inspect targetpid} <- #{Message.inspect any}"
+								IO.puts :stderr, "#{inspect targetpid} <- #{Message.inspect any}"
 								send targetpid, any
 						end
 				end
