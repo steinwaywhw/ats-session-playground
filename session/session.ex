@@ -1,66 +1,81 @@
 
 defmodule Message do 
 
+	@doc """
+	Packs a message into a pre-defined format.
+
+	A message is of the format `{label, pid, ref, payload}`, where
+
+	* `label` is the message type
+	* `pid` is the message origin, which should not be changed in routing
+	* `ref` is the message sender's id
+	* `payload` is the message payload itself
+	"""
 	def pack(label, pid, ref, payload) do 
 		{label, pid, ref, payload}
 	end 
 
-	# def new_pid(msg, pid) do 
-		# case msg do 
-			# {label, _, ref, payload} -> {label, pid, ref, payload}
-		# end 
-	# end
-
-	# def new_ref(msg, ref) do 
-	# 	case msg do 
-	# 		{label, pid, _, payload} -> {label, pid, ref, payload}
-	# 	end
-	# end
-
-	# def packlite(label, pid, payload) do 
-		# {label, pid, payload}
-	# end 
-
+	@doc """
+	Inspect a message by converting it to an info string for output.
+	"""
 	def inspect(msg) do 
 		case msg do 
 			{label, pid, ref, payload} -> "#{Kernel.inspect label} #{Kernel.inspect payload} as #{Kernel.inspect ref}"
-			# {label, pid, payload} -> "#{Kernel.inspect label} #{Kernel.inspect payload}"
-			# _ -> "#{Kernel.inspect msg}"
 		end
 	end 
 
-	defmacro match(msg, action, ref) do 
+	@doc """
+	A macro for matching message in the guard expression.
+
+	* `msg`, message to be matched with
+	* `label`, the message should have this label
+	* `ref`, the message should have this ref 
+	"""
+	defmacro match(msg, label, ref) do 
 		quote do 
-			is_tuple(unquote(msg)) 
-			and elem(unquote(msg), 0) == unquote(action)
+			is_tuple(unquote(msg)) the message should have this label
+			and elem(unquote(msg), 0) == unquote(label)
 			and elem(unquote(msg), 2) == unquote(ref)
 		end
 	end
 
-	defmacro match(msg, action) do 
+	@doc """
+	A macro for matching message in the guard expression.
+
+	* `msg`, message to be matched with
+	* `label`, the message should have this label
+	"""	
+	defmacro match(msg, label) do 
 		quote do 
-			is_tuple(unquote(msg))
-			and elem(unquote(msg), 0) == unquote(action)
+			is_tuple(unquote(msg))the message should have this label
+			and elem(unquote(msg), 0) == unquote(label)
 		end
 	end  
 
+	@doc """
+	Get the label of the message.
+	"""
 	def label(msg) do 
 		case msg do 
 			{label, _, _, _} -> label
 		end
 	end 
 
+	@doc """
+	Get the origin(pid) of the message.
+	"""
 	def origin(msg) do 
 		case msg do 
 			{_, pid, _, _} -> pid 
-			# {_, pid, _} -> pid 
 		end
 	end 
 
+	@doc """
+	Get the payload of the message.
+	"""
 	def payload(msg) do 
 		case msg do 
  			{_, _, _, payload} -> payload 
- 			# {_, _, payload} -> payload 
 		end
 	end 
 end
@@ -70,46 +85,26 @@ defmodule Session do
 
 	
 	@doc """
-	Making a publicly shared name from a string.
-
-	Note that nodes should be pre-connected, otherwise names 
-	will be conflict.
+	Make a name from a string.
 	"""
 	def make_name(name) do 
 		name = String.to_atom name
-		# IO.puts :stderr, "Making name: #{inspect name}"
-
-		ret = :global.register_name(name, self())
-		# IO.puts :stderr, "Registering: #{inspect ret}"
 
 		name
 	end
-
-	# def accept(name, f) do 
-	# 	IO.puts :stderr, "Listening on #{inspect name} by #{inspect self()}"
-	# 	receive do 
-	# 		{:request, requester, ^name} ->
-	# 			IO.puts :stderr, "Got request from #{inspect requester} on #{inspect name}"
-				
-	# 			[a, b] = Channel.channel_create()
-	# 			IO.puts :stderr, "New channel #{inspect a}, #{inspect b}"
-				
-	# 			pid = spawn_link fn -> f.(a) end
-	# 			IO.puts :stderr, "New thread #{inspect pid} running server code #{inspect f}"
-				
-	# 			IO.puts :stderr, "Sending channel #{inspect b} to #{inspect requester}"
-	# 			send requester, {:accepted, b}
-	# 	end 
-	# end 
-
  
 	@doc """
 	Accept a connection request to a shared name.
 
-	It creates two processes as two ends of a channel. Then it sends
+	It first registers the name globally.
+
+	Then it creates two processes as two ends of a channel. Then it sends
 	one end to the requester, and return the other end to the caller. 
 	"""
 	def accept(name) do 
+
+		:global.register_name(name, self())
+
 		# IO.puts :stderr, "Listening on #{inspect name} by #{inspect self()}"
 		receive do 
 			{:request, requester, ^name} ->
@@ -349,6 +344,8 @@ defmodule Channel do
 						IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
 						send pid, out
 
+						# there should be only one blocking messages to be forwarded
+						# TODO: prove it
 						receive do 
 							any -> 
 								IO.puts :stderr, "-> #{Message.inspect any}"
@@ -359,6 +356,8 @@ defmodule Channel do
 						end
 				end
 		end
+
+		IO.puts :stderr, "#{inspect self()} CLOSED"
 	end 
 
 
@@ -379,23 +378,23 @@ defmodule Channel do
 
 
 
-	defp handle_link(msg, self, pid, other) do 
-		{targetpid, targetref} = Message.payload msg 
-		out = Message.pack(:link, Message.origin(msg), self, {pid, other})
+	# defp handle_link(msg, self, pid, other) do 
+	# 	{targetpid, targetref} = Message.payload msg 
+	# 	out = Message.pack(:link, Message.origin(msg), self, {pid, other})
 
-		IO.puts :stderr, "#{inspect targetpid} <- #{Message.inspect out}"
-		send targetpid, out 
+	# 	IO.puts :stderr, "#{inspect targetpid} <- #{Message.inspect out}"
+	# 	send targetpid, out 
 
-		receive do 
-			reply when Message.match(reply, :link, targetref) -> 
-				IO.puts :stderr, "-> #{Message.inspect reply}"
+	# 	receive do 
+	# 		reply when Message.match(reply, :link, targetref) -> 
+	# 			IO.puts :stderr, "-> #{Message.inspect reply}"
 
-				out = Message.pack(:link, Message.origin(reply), self, Message.payload(reply))
+	# 			out = Message.pack(:link, Message.origin(reply), self, Message.payload(reply))
 
-				IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-				send pid, out
-		end
-	end
+	# 			IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
+	# 			send pid, out
+	# 	end
+	# end
 
 	defp init() do 
 		receive do 
