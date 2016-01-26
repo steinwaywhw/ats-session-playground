@@ -1,2 +1,4 @@
 # ats-session-playground
-Just a Playground
+
+Just a session type playground. 
+
