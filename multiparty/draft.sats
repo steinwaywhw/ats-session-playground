@@ -1,35 +1,66 @@
 
 
 
+sortdef protocol = type 
+//sortdef endpt = int 
+//typedef endpt = int 
+
+abstype cls () 
+abstype msg (int, int, vt@ype)
+abstype chse (int, int)
+abstype seqs (type, type)
+
+absprop PROJ (int, protocol, protocol)
+
+abstype pfsession (protocol) = ptr 
+datatype rtsession (protocol) = 
+| rtcls (cls ()) of ()
+| {p:protocol} rtskip (p) of ()
+| {a:vt@ype} {x,y:int} rtmsg (msg (x, y, a)) of (int x, int y)
+| {x:int} {n:int} rtchse (chse (x, n)) of (int x, int n)
+| {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
+
+typedef gsession (p:protocol, arity:int) = '{s = pfsession p, r = rtsession p, arity = int arity}
+typedef session (self:int, p:protocol, arity:int) = '{s = pfsession p, r = rtsession p, self = int self, arity = int arity}
 
 
+fun project {x:int|x >= 0} {gp:protocol} {arity:int|x < arity} (int x, gsession (gp, arity)): [p:protocol] (PROJ (x, gp, p) | session (x, p, arity))
+
+
+
+
+////
 absprop PROJ (int, type, type)
 
-typedef ep (n:int) = int n 
+sortdef endpt = int 
+sortdef protocol = type
 
 abstype cls ()
-abstype msg (t@ype, t@ype, vt@ype)
-abstype seqs (type, type) 
+abstype msg (endpt, endpt, vt@ype)
+abstype seqs (protocol, protocol) 
 #define :: seqs
 
-abstype name (type) = ptr
+abstype name (protocol) = ptr
 
-absvtype prsession (type) = ptr 
-datavtype rtsession (type) = 
-| {a:type} rtskip (a) of ()
+absvtype prsession (protocol) = ptr 
+datavtype rtsession (protocol) = 
+| {p:protocol} rtskip (p) of ()
 | rtcls (cls ()) of () 
-| {x,y:int} {a:vt@ype} rtmsg (msg (ep x, ep y, a)) of (ep x, ep y)
-| {a,b:type} rtseqs (seqs (a, b)) of (rtsession a, rtsession b)
+| {x,y:endpt} {a:vt@ype} rtmsg (msg (x, y, a)) of (int x, int y)
+| {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
 
-vtypedef gsession (s:type) = '{p = prsession s, r = rtsession s}
-vtypedef session (ep:t@ype, s:type) = '{self = ep, p = prsession s, r = rtsession s}
+vtypedef gsession (p:protocol) = '{p = prsession p, r = rtsession p}
+vtypedef session (x:endpt, p:protocol) = '{self = int x, p = prsession p, r = rtsession p}
 
-fun send {x,y:int} {a:vt@ype} {s:type} (!session (ep x, msg (ep x, ep y, a) :: s) >> session (ep x, s), ep y, a): void
-fun recv {x,y:int} {a:vt@ype} {s:type} (!session (ep x, msg (ep y, ep x, a) :: s) >> session (ep x, s), ep y): a
+fun send {x,y:endpt} {a:vt@ype} {p:protocol} (!session (x, msg(x, y, a) :: p) >> session (x, p), int y , a): void
+fun recv {x,y:endpt} {a:vt@ype} {p:protocol} (!session (x, msg(y, x, a) :: p) >> session (x, p), int y): a
 
-fun accpet {x:int} {s:type} (name s, gsession s, ep x): [ss:type] (PROJ (x, s, ss) | session (ep x, ss))
-fun request {x:int} {s:type} (name s, gsession s, ep x): [ss:type] (PROJ (x, s, ss) | session (ep x, ss))
-fun project {x:int} {s:type} (gsession s, ep x): [ss:type] (PROJ (x, s, ss) | session (ep x, ss))
+fun accpet  {x:endpt} {p:protocol} (name p, gsession p, x): [ss:protocol] (PROJ (x, p, ss) | session (x, ss))
+fun request {x:endpt} {p:protocol} (name p, gsession p, x): [ss:protocol] (PROJ (x, p, ss) | session (x, ss))
+fun project {x:endpt} {p:protocol} (gsession p, x): [ss:protocol] (PROJ (x, p, ss) | session (x, ss))
+
+
+
 
 
 
