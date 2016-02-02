@@ -9,7 +9,7 @@ implement is_equal {p,q} (x, y) =
 	| (rtcls (), rtcls ()) => true 
 	| (rtskip (), rtskip ()) => true 
 	| (rtmsg (x1, y1), rtmsg (x2, y2)) => x1 = x2 andalso y1 = y2
-	| (rtchse (x1, n1), rtchse (x2, n2)) => x1 = x2 andalso n1 = n2 
+	| (rtchse (x1, n1, p1, q1), rtchse (x2, n2, p2, q2)) => x1 = x2 andalso n1 = n2 andalso is_equal (p1, p2) andalso is_equal (q1, q2)
 	| (rtseqs (x1, y1), rtseqs (x2, y2)) => is_equal (x1, x2) andalso is_equal (y1, y2)
 	| (_, _) =>> false
 
@@ -26,11 +26,17 @@ in
 end 
 
 
-
 implement project {x} {gp} (self, gp) = 
 	case+ gp of 
 	| ~rtcls ()         => (proj_cls () | rtcls ())
 	| ~rtskip ()        => (proj_skip () | rtskip ())
+	| ~rtchse (from, choice, p, q) => 
+		let 
+			val (pfpp | pp) = project (self, p)
+			val (pfqq | qq) = project (self, q)
+		in 
+		 	(proj_chse (pfpp, pfqq) | rtchse (from, choice, pp, qq))
+		 end 
 	| ~rtmsg (from, to) =>
 		if from = self
 			then (proj_msg_from () | rtmsg (from, to))
@@ -40,8 +46,6 @@ implement project {x} {gp} (self, gp) =
 			then (proj_msg_broadcast () | rtmsg (from, self))
 		else 
 			(proj_msg_skip () | rtskip ())
-
-	| ~rtchse (from, choice) => (proj_chse () | rtchse (from, choice))
 	| ~rtseqs (p, q) => 
 		let 
 			val (pfpp | pp) = project (self, p)
@@ -52,26 +56,63 @@ implement project {x} {gp} (self, gp) =
 			| (pp, qq) =>> (proj_seqs (pfpp, pfqq) | rtseqs (pp, qq))
 		end 
 
-extern fun test (): void 
-implement test () = () where {
 
-	val rt = 
-		rtseqs (
-			rtmsg (0, 1), 
-			rtseqs (
-				rtmsg (1, 2), 
-				rtseqs (
-					rtmsg (2, 0), 
-					rtcls ())))
-
+extern fun test1 (): void 
+implement test1 () = () where {
+	val rt = rtseqs (rtmsg (0, 1), rtseqs (rtmsg (1, 2), rtseqs (rtmsg (2, 0), rtcls ())))
 	val name = make_name {msg(0,1,int) :: msg (1,2,int) :: msg (2,0,int) :: cls()} ("dummy")
 	prval pf = 
 		let 
 			#define ++ proj_seqs
-			#define +- proj_seqs_skipq 
 			#define -+ proj_seqs_skipp
 			infixr ++
-			infixr +-
+			infixr -+
+		in 
+			proj_msg_to() ++ proj_msg_from() ++ proj_msg_skip() -+ proj_cls()
+		end 
+
+	val session = request (pf | name, 1, rt)
+	val x = receive (session)
+	val _ = send (session, 1)
+	val _ = close (session)	
+}
+
+extern fun test2 (): void 
+implement test2 () = let 
+	val rt = rtseqs (rtmsg (0, 1), rtseqs (rtmsg (1, 2), rtseqs (rtmsg (2, 0), rtcls ())))
+	val name = make_name {msg(0,1,int) :: msg (1,2,int) :: msg (2,0,int) :: cls()} ("dummy")
+	prval pf = 
+		let 
+			#define ++ proj_seqs
+			#define -+ proj_seqs_skipp
+			infixr ++
+			infixr -+
+		in 
+			proj_msg_skip() -+ proj_msg_to() ++ proj_msg_from() ++ proj_cls()
+		end 
+
+
+	fun task (session: session (2, msg(1,2,int)::msg(2,0,int)::cls())): void = () where {
+		val x = receive (session)
+		val _ = send (session, 1)
+		val _ = close (session)	
+	}
+in 
+	accept (pf | name, 2, rt, llam session => task session)
+end 
+
+
+extern fun test0 (): void 
+implement test0 () = () where {
+
+	val rt = rtseqs (rtmsg (0, 1), rtseqs (rtmsg (1, 2), rtseqs (rtmsg (2, 0), rtcls ())))
+	val name = make_name {msg(0,1,int) :: msg (1,2,int) :: msg (2,0,int) :: cls()} ("dummy")
+//	val name = make_name ("dummy", rt)
+	prval pf = 
+		let 
+			#define ++ proj_seqs
+			#define -+ proj_seqs_skipp
+			infixr ++
 			infixr -+
 		in 
 			proj_msg_from() ++ proj_msg_skip() -+ proj_msg_to() ++ proj_cls()
@@ -81,6 +122,8 @@ implement test () = () where {
 	val _ = send (session, 1)
 	val x = receive (session)
 	val _ = close (session)	
+
+//	val _ = $UN.cast2void x
 
 //	val _ = $UN.cast2void session
 //	val _ = $showtype rt
@@ -95,7 +138,25 @@ implement test () = () where {
 //	val _ = send (0, s.s)
 }
 
-implement main0 () = test ()
+
+extern fun test_offer () = () where {
+
+	val rt = rtchse(1, 0, rtchse(0, 1, rtcls(), rtcls()), rtcls())
+	val name = make_name {chse(1,0,chse(0,1,cls(),cls()),cls())} ("dummy")
+	prval pf = 
+		let
+			#define ++ proj_seqs
+			#define -+ proj_seqs_skipp
+			infixr ++
+			infixr -+
+		in 
+			proj_msg_from() ++ proj_msg_skip() -+ proj_msg_to() ++ proj_cls()
+		end 
+
+}
+
+
+implement main0 () = test0 ()
 
 ////
 implement project {x} {gp} {arity} (self, gs) = let 
