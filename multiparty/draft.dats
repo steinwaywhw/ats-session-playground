@@ -38,14 +38,18 @@ implement project {x} {gp} (self, gp) =
 		 	(proj_chse (pfpp, pfqq) | rtchse (from, choice, pp, qq))
 		 end 
 	| ~rtmsg (from, to) =>
-		if from = self
-			then (proj_msg_from () | rtmsg (from, to))
-		else if to = self 
-			then (proj_msg_to () | rtmsg (from, to))
-		else if to = ~1 
-			then (proj_msg_broadcast () | rtmsg (from, self))
+		if to = ~1 
+		then 
+			if from = self 
+			then (proj_msg_broadcast_from () | rtmsg (from, to))
+			else (proj_msg_broadcast_to () | rtmsg (from, self))
 		else 
-			(proj_msg_skip () | rtskip ())
+			if from = self 
+				then (proj_msg_from () | rtmsg (from, to))
+			else if to = self 
+				then (proj_msg_to() | rtmsg (from, to))
+			else 
+				(proj_msg_skip () | rtskip ())
 	| ~rtseqs (p, q) => 
 		let 
 			val (pfpp | pp) = project (self, p)
@@ -55,6 +59,24 @@ implement project {x} {gp} (self, gp) =
 			| (pp, ~rtskip ()) =>> (proj_seqs_skipq (pfpp, pfqq) | pp)
 			| (pp, qq) =>> (proj_seqs (pfpp, pfqq) | rtseqs (pp, qq))
 		end 
+
+
+
+extern fun test_broadcast (): void 
+implement test_broadcast () = () where {
+	val rt = rtseqs (rtmsg (1, ~1), rtcls ())
+	val name = make_name {msg(1,~1,int) :: cls()} ("dummy")
+//	prval pf1 = proj_seqs (proj_msg_broadcast_to (), proj_cls ())
+	prval pf2 = proj_seqs (proj_msg_broadcast_from (), proj_cls ())
+
+//	val session = request (pf1 | name, 3, rt)
+//	val x = receive (session)
+//	val _ = close session 
+
+	val session = request (pf2 | name, 1, rt)
+	val x = broadcast (session, 100)
+	val _ = close session
+}
 
 
 extern fun test1 (): void 
@@ -138,8 +160,9 @@ implement test0 () = () where {
 //	val _ = send (0, s.s)
 }
 
-////
-extern fun test_offer () = () where {
+
+extern fun test_choose (): void 
+implement test_choose () = () where {
 
 	val rt = rtchse(1, 0, rtchse(0, 1, rtcls(), rtcls()), rtcls())
 	val name = make_name {chse(1,0,chse(0,1,cls(),cls()),cls())} ("dummy")
@@ -147,12 +170,17 @@ extern fun test_offer () = () where {
 		let
 			#define ++ proj_seqs
 			#define -+ proj_seqs_skipp
+			#define || proj_chse
 			infixr ++
 			infixr -+
+			infixl ||
 		in 
-			proj_msg_from() ++ proj_msg_skip() -+ proj_msg_to() ++ proj_cls()
+			proj_cls() || proj_cls() || proj_cls() 
 		end 
 
+	val session = request (pf | name, 0, rt)
+	val _ = choose_fst session
+	val _ = offer (session, llam session => close session, llam session => close session)
 }
 
 
