@@ -138,7 +138,7 @@ implement test0 () = () where {
 //	val _ = send (0, s.s)
 }
 
-
+////
 extern fun test_offer () = () where {
 
 	val rt = rtchse(1, 0, rtchse(0, 1, rtcls(), rtcls()), rtcls())
