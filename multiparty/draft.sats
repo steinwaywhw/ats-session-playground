@@ -14,6 +14,13 @@ abstype seqs (type, type)
 //sortdef endpt    = nat  // for normal endpoints
 //sortdef endpt_bc = {n: int | n >= ~1} // for normal and broadcast endpoints
 
+//dataprop EQ (protocol, protocol) = 
+//| eq_skip (skip(), skip())
+//| eq_cls (cls(), cls())
+//| {x,y:int} {a:t@ype} eq_msg (msg(x,y,a), msg(x,y,a))
+//| {x,y,m,n:int|x==m&&y==n} {p,q,i,j:protocol} eq_chse (chse(x,y,p,q), chse(m,n,i,j)) of (EQ (p, i), EQ (q, j))
+//| {p,q,i,j:protocol} eq_seqs (p::q, i::j) of (EQ (p, i), EQ (q, j))
+
 (* projection *)
 dataprop PROJ (int, protocol, protocol) = 
 (* basis *)
@@ -25,49 +32,55 @@ dataprop PROJ (int, protocol, protocol) =
 | {self:nat} {x:nat|x != self} {a:vt@ype} proj_msg_from (self, msg(self,x,a), msg(self,x,a))
 | {self:nat} {x:nat|x != self} {a:vt@ype} proj_msg_to   (self, msg(x,self,a), msg(x,self,a))
 (* broadcast *)
-| {self:nat} {a:vt@ype} proj_msg_broadcast_from (self, msg(self,~1,a), msg(self,~1,a))
-| {self:nat} {x:nat|x != self} {a:vt@ype} proj_msg_broadcast_to (self, msg(x,~1,a), msg(x,self,a))
+| {self:nat} {a:vt@ype} 				  proj_msg_broadcast_from (self, msg(self,~1,a), msg(self,~1,a))
+| {self:nat} {x:nat|x != self} {a:vt@ype} proj_msg_broadcast_to   (self, msg(x,~1,a), msg(x,self,a))
 (* choose *)
-| {self:nat} {x,y:nat} {p,pp,q,qq:protocol} proj_chse (self, chse (x, y, p, q), chse (x, y, pp, qq)) of (PROJ(self,p,pp), PROJ(self,q,qq))
+| {self:nat} {x,y:nat|x != y} {p,pp,q,qq:protocol} proj_chse (self, chse (x, y, p, q), chse (x, y, pp, qq)) of (PROJ(self,p,pp), PROJ(self,q,qq))
 (* seqs *)
-| {self:nat} {p,pp,q,qq:protocol} proj_seqs (self, p::q, pp::qq) of (PROJ(self,p,pp), PROJ(self,q,qq))
+| {self:nat} {p,pp,q,qq:protocol} proj_seqs 	  (self, p::q, pp::qq) of (PROJ(self,p,pp), PROJ(self,q,qq))
 | {self:nat} {p,q,qq:protocol}    proj_seqs_skipp (self, p::q, qq) of (PROJ(self,p,skip()), PROJ(self,q,qq))
 | {self:nat} {p,pp,q:protocol}	  proj_seqs_skipq (self, p::q, pp) of (PROJ(self,p,pp), PROJ(self,q,skip()))
 
+
 (* session *)
 absvtype pfsession (protocol) = ptr 
-datavtype rtsession (protocol) = 
+datatype rtsession (protocol) = 
 | rtcls (cls ()) of ()
 | rtskip (skip ()) of ()
 | {a:vt@ype} {x:nat} {y:int|y >= ~1 && y != x} rtmsg (msg (x, y, a)) of (int x, int y)
-| {x:nat} {n:nat} {p,q:protocol} rtchse (chse (x, n, p, q)) of (int x, int n, rtsession p, rtsession q)
+| {x,y:nat|x != y} {p,q:protocol} rtchse (chse (x, y, p, q)) of (int x, int y, rtsession p, rtsession q)
 | {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
 
-vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
+
+//vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
+datavtype session (self:int, p:protocol) = Session (self, p) of (pfsession p, rtsession p, int self)
 
 (* name *)
 abstype name (protocol) = ptr 
 fun make_name {gp:protocol} (string): name gp
 
 (* session init *)
-fun request {x:nat} {gp,p:protocol} (PROJ (x, gp, p) | name gp, int x, rtsession gp): session (x, p)
-fun accept  {x:nat} {gp,p:protocol} (PROJ (x, gp, p) | name gp, int x, rtsession gp, session (x, p) -<linclo1> void): void
+fun request {self:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp): session (self, p)
+fun accept  {self:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, session (self, p) -<lincloptr1> void): void
 
 (* project *)
 (* TODO make it internal *)
-fun project {x:nat} {gp:protocol} (int x, rtsession gp): [p:protocol] (PROJ (x, gp, p) | rtsession p)
-fun is_equal {p,q:protocol} (!rtsession p, !rtsession q): bool 
+fun project {self:nat} {gp:protocol} (int self, rtsession gp): [p:protocol] (PROJ (self, gp, p) | rtsession p)
+fun is_equal {p,q:protocol} (rtsession p, rtsession q): bool 
 
 (* primitives *)
-fun send {x:nat} {y:nat} {p:protocol} {a:vt@ype} (!session (x, msg(x,y,a) :: p) >> session (x, p), a): void 
-fun receive {x:nat} {y:int} {p:protocol} {a:vt@ype} (!session (x, msg(y,x,a) :: p) >> session (x, p)): a
-fun broadcast {x:nat} {p:protocol} {a:vt@ype} (!session (x, msg(x,~1,a) :: p) >> session (x, p), a): void
-fun offer {x,y:nat} {p,q:protocol} (session (x, chse(x,y,p,q)), session (x, p) -<linclo1> void, session (x, q) -<linclo1> void): void 
-fun choose_fst {x,y:nat} {p,q:protocol} (!session (y, chse (x,y,p,q)) >> session (y, p)): void 
-fun choose_snd {x,y:nat} {p,q:protocol} (!session (y, chse (x,y,p,q)) >> session (y, q)): void
-fun close {x:nat} (session (x, cls())): void 
+fun send    {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(self,x,a) :: p) >> session (self, p), a): void 
+fun receive {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(x,self,a) :: p) >> session (self, p)): a
 
+fun broadcast {self:nat} {p:protocol} {a:vt@ype} (!session (self, msg(self,~1,a) :: p) >> session (self, p), a): void
 
+fun offer 	   {self,x:nat|x != self} {p,q:protocol} (session (self, chse(self,x,p,q)), session (self, p) -<lincloptr1> void, session (self, q) -<lincloptr1> void): void 
+fun choose_fst {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,self,p,q)) >> session (self, p)): void 
+fun choose_snd {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,self,p,q)) >> session (self, q)): void
+
+fun close {self:nat} (session (self, cls())): void 
+
+fun inspect {self:nat} {p:protocol} (!session (self, p)): void
 ////
 
 //vtypedef rtsession (p:protocol, arity:int) = rtsession p 

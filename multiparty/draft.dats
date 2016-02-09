@@ -3,6 +3,22 @@ staload UN = "prelude/SATS/unsafe.sats"
 #define :: seqs 
 
 
+//implement inspect {self} {p} (session) = let 
+//	val+ Session (_, rt, self) = session 
+//	val _ = println! ("Inspecting Session:")
+//	val _ = println! ("self: ", self)
+
+//	fun spaces (n: nat): void = 
+//		if n > 0
+//		then (print " "; spaces (n-1))
+
+//	fun show {p:protocol} (level: int, s: rtsession p): void = 
+//		case+ p of 
+//		| rtskip () => (spaces (level*2); println! "skip")
+//		| rtcls () => (spaces (level*2); println! "cls")
+//		| rtmsg (a, b) => (spaces (level*2); println! ("msg(", a, "->", b, ")"))
+//		| rtchse (a, b, p, q) => (spaces (level*2); println! ("chse(", a, "->", b); show (level+1, p); show (level+1,q))
+//		| rtseqs (p, q) => (spaces (level*2); show (level, p); show (level, q))
 
 implement is_equal {p,q} (x, y) = 
 	case+ (x, y) of 
@@ -14,30 +30,45 @@ implement is_equal {p,q} (x, y) =
 	| (_, _) =>> false
 
 
-implement request {x} {gp,p} (pf | name, self, gp) = let 
-	val (_ | proj) = project (self, gp)
-	extern fun _request {p:protocol} (pf: PROJ (x, gp, p) | name: name gp): @{session=pfsession p, rt=rtsession p} = "mac#"
-	val @{session=session, rt=rt} = _request (pf | name)
+implement request {self} {gp,p} (pf | name, self, gp) = let 
+	val (pf0 | proj) = project (self, gp)
 
-	val _ = assertloc (is_equal (rt, proj))
-	val _ = $UN.cast2void proj
+	// elixir: take a name, and a global session type, get a local session back 
+	// the server is responsible for checking global type match
+	extern fun _request (name: name gp, rt: rtsession gp): pfsession p = "mac#"
+	val session = _request (name, gp)
+
+	val proj = $UN.cast{rtsession p} proj
 in 
-	@{session=session, rt=rt, self=self}
+	Session(session, proj, self)
 end 
 
+implement accept {self} {gp,p} (pf | name, self, gp, task) = let 
+	val (_ | proj) = project (self, gp)
+	val proj = $UN.cast{rtsession p} proj
+	extern fun _accept (pf: PROJ (self, gp, p) | name: name gp, check: rtsession gp -> bool, task: pfsession p -<lincloptr1> void): void = "mac#"
+in
+	_accept (pf | name, 
+		lam requested => is_equal (requested, gp), 
+		llam session => let 
+			val _ = task (Session (session, proj, self))
+		in 
+			cloptr_free ($UN.castvwtp0{cloptr0} task) 
+		end)
+end 
 
-implement project {x} {gp} (self, gp) = 
+implement project {self} {gp} (self, gp) = 
 	case+ gp of 
-	| ~rtcls ()         => (proj_cls () | rtcls ())
-	| ~rtskip ()        => (proj_skip () | rtskip ())
-	| ~rtchse (from, choice, p, q) => 
+	| rtcls ()         => (proj_cls () | rtcls ())
+	| rtskip ()        => (proj_skip () | rtskip ())
+	| rtchse (from, choice, p, q) => 
 		let 
 			val (pfpp | pp) = project (self, p)
 			val (pfqq | qq) = project (self, q)
 		in 
 		 	(proj_chse (pfpp, pfqq) | rtchse (from, choice, pp, qq))
 		 end 
-	| ~rtmsg (from, to) =>
+	| rtmsg (from, to) =>
 		if to = ~1 
 		then 
 			if from = self 
@@ -50,15 +81,29 @@ implement project {x} {gp} (self, gp) =
 				then (proj_msg_to() | rtmsg (from, to))
 			else 
 				(proj_msg_skip () | rtskip ())
-	| ~rtseqs (p, q) => 
+	| rtseqs (p, q) => 
 		let 
 			val (pfpp | pp) = project (self, p)
 			val (pfqq | qq) = project (self, q)
 		in case+ (pp, qq) of
-			| (~rtskip (), qq) => (proj_seqs_skipp (pfpp, pfqq) | qq)
-			| (pp, ~rtskip ()) =>> (proj_seqs_skipq (pfpp, pfqq) | pp)
+			| (rtskip (), qq) => (proj_seqs_skipp (pfpp, pfqq) | qq)
+			| (pp, rtskip ()) =>> (proj_seqs_skipq (pfpp, pfqq) | pp)
 			| (pp, qq) =>> (proj_seqs (pfpp, pfqq) | rtseqs (pp, qq))
 		end 
+
+implement send {self,x} {p} {a} (s, payload) = let 
+	
+	extern fun _send (!pfsession (msg(self, x, a) :: p) >> pfsession p, a): void = "mac#"
+
+	val+ @Session(session, rt, self) = s 
+	val _ = _send (session, payload)
+	val+ rtseqs(rtmsg _, p) = rt 
+	val _ = rt := p 
+	prval _ = fold@s
+in 
+	()
+end
+
 
 
 
