@@ -5,10 +5,15 @@ sortdef protocol = type
 abstype cls () 
 abstype skip ()
 abstype msg (int, int, vt@ype)
-abstype chse (int, int, type, type)
+abstype chse (int, type, type)
 abstype seqs (type, type)
 
 #define :: seqs
+
+datavtype option (a:vtype) =
+| Some (a) of a 
+| None (a) 
+
 
 (* endpoints *)
 //sortdef endpt    = nat  // for normal endpoints
@@ -35,7 +40,7 @@ dataprop PROJ (int, protocol, protocol) =
 | {self:nat} {a:vt@ype} 				  proj_msg_broadcast_from (self, msg(self,~1,a), msg(self,~1,a))
 | {self:nat} {x:nat|x != self} {a:vt@ype} proj_msg_broadcast_to   (self, msg(x,~1,a), msg(x,self,a))
 (* choose *)
-| {self:nat} {x,y:nat|x != y} {p,pp,q,qq:protocol} proj_chse (self, chse (x, y, p, q), chse (x, y, pp, qq)) of (PROJ(self,p,pp), PROJ(self,q,qq))
+| {self:nat} {x:nat} {p,pp,q,qq:protocol} proj_chse (self, chse(x,p,q), chse(x,pp,qq)) of (PROJ(self,p,pp), PROJ(self,q,qq))
 (* seqs *)
 | {self:nat} {p,pp,q,qq:protocol} proj_seqs 	  (self, p::q, pp::qq) of (PROJ(self,p,pp), PROJ(self,q,qq))
 | {self:nat} {p,q,qq:protocol}    proj_seqs_skipp (self, p::q, qq) of (PROJ(self,p,skip()), PROJ(self,q,qq))
@@ -48,7 +53,7 @@ datatype rtsession (protocol) =
 | rtcls (cls ()) of ()
 | rtskip (skip ()) of ()
 | {a:vt@ype} {x:nat} {y:int|y >= ~1 && y != x} rtmsg (msg (x, y, a)) of (int x, int y)
-| {x,y:nat|x != y} {p,q:protocol} rtchse (chse (x, y, p, q)) of (int x, int y, rtsession p, rtsession q)
+| {x:nat} {p,q:protocol} rtchse (chse (x, p, q)) of (int x, rtsession p, rtsession q)
 | {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
 
 
@@ -60,8 +65,8 @@ abstype name (protocol) = ptr
 fun make_name {gp:protocol} (string): name gp
 
 (* session init *)
-fun request {self:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp): session (self, p)
-fun accept  {self:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, session (self, p) -<lincloptr1> void): void
+fun request {self,arity:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, int arity): option (session (self, p))
+fun accept  {self,arity:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, int arity, option (session (self, p)) -<lincloptr1> void): void
 
 (* project *)
 (* TODO make it internal *)
@@ -74,9 +79,13 @@ fun receive {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(
 
 fun broadcast {self:nat} {p:protocol} {a:vt@ype} (!session (self, msg(self,~1,a) :: p) >> session (self, p), a): void
 
-fun offer 	   {self,x:nat|x != self} {p,q:protocol} (session (self, chse(self,x,p,q)), session (self, p) -<lincloptr1> void, session (self, q) -<lincloptr1> void): void 
-fun choose_fst {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,self,p,q)) >> session (self, p)): void 
-fun choose_snd {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,self,p,q)) >> session (self, q)): void
+datatype choice (x:protocol, p:protocol, q:protocol) =
+| Fst (p, p, q) of ()
+| Snd (q, p, q) of ()
+
+fun offer 	   {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> session (self, x)): #[x:protocol] choice (x, p, q) 
+fun choose_fst {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, p)): void 
+fun choose_snd {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, q)): void
 
 fun close {self:nat} (session (self, cls())): void 
 
