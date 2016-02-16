@@ -1,3 +1,4 @@
+#define ATS_EXTERN_PREFIX "libsession_"
 
 (* protocol *)
 sortdef protocol = type 
@@ -62,11 +63,11 @@ datavtype session (self:int, p:protocol) = Session (self, p) of (pfsession p, rt
 
 (* name *)
 abstype name (protocol) = ptr 
-fun make_name {gp:protocol} (string): name gp
+fun make_name {gp:protocol} (string): name gp = "mac#%"
 
 (* session init *)
 fun request {self,arity:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, int arity): option (session (self, p))
-fun accept  {self,arity:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, int arity, option (session (self, p)) -<lincloptr1> void): void
+fun accept  {self:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, option (session (self, p)) -<lincloptr1> void): void
 
 (* project *)
 (* TODO make it internal *)
@@ -87,7 +88,7 @@ fun offer 	   {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> sess
 fun choose_fst {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, p)): void 
 fun choose_snd {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, q)): void
 
-fun close {self:nat} (session (self, cls())): void 
+fun close {self:nat} (session (self, cls())): void = "mac#%"
 
 fun inspect {self:nat} {p:protocol} (!session (self, p)): void
 ////
