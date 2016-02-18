@@ -40,7 +40,7 @@ implement request {self,arity} {gp,p} (pf | name, self, gp, arity) = let
 	extern fun _request (name: name gp, rt: rtsession gp, self: int self, arity: int arity): pfsession p = "mac#libsession_request"
 	val session = _request (name, gp, self, arity)
 in 
-	Some (Session(session, proj, self))
+	Some (Session(session, (*proj, *)self))
 end 
 
 implement accept {self} {gp,p} (pf | name, self, gp, task) = let 
@@ -55,7 +55,7 @@ in
 		self, 
 		llam session => 
 			let 	
-				val _ = task (Some (Session (session, proj, self)))
+				val _ = task (Some (Session (session, (*proj, *)self)))
 				prval _ = $UN.cast2void task
 				//val _ = cloptr_free ($UN.castvwtp0{cloptr0} task)
 			in 
@@ -100,18 +100,88 @@ implement project {self} {gp} (self, gp) =
 
 
 
-implement send {self,x} {p} {a} (s, payload) = let 
+implement send {self,x} {p} {a} (s, to, payload) = let 
 	
-	extern fun _send (!pfsession (msg(self, x, a) :: p) >> pfsession p, a): void = "mac#libsession_send"
+	extern fun _send (a, int x, !pfsession (msg(self, x, a) :: p) >> pfsession p): void = "mac#libsession_send"
 
-	val+ @Session(session, rt, self) = s 
-	val _ = _send (session, payload)
-	val+ rtseqs(rtmsg _, p) = rt 
-	val _ = rt := p 
+	val+ @Session(session, (*rt, *)self) = s 
+	val _ = _send (payload, to, session)
+//	val+ rtseqs(_, p) = rt 
+//	val _ = rt := p 
 	prval _ = fold@s
 in 
 	()
 end
+
+implement receive {self,x} {p} {a} (s, from) = let 
+
+	extern fun _recv (int x, !pfsession (msg(x, self, a) :: p) >> pfsession p): a = "mac#libsession_receive"
+
+	val+ @Session(session, self) = s 
+	val ret = _recv (from, session)
+	prval _ = fold@s 
+in 
+	ret 
+end 
+
+implement broadcast {self} {p} {a} (s, payload) = let 
+	extern fun _send (a, int ~1, !pfsession (msg(self, ~1, a) :: p) >> pfsession p): void = "mac#libsession_send"
+
+	val+ @Session(session, self) = s 
+	val _ = _send (payload, ~1, session)
+	prval _ = fold@s 
+in 
+	()
+end
+
+implement close {self} (s) = let 
+	extern fun _close (pfsession (cls())): void = "mac#libsession_close"
+
+	val+ ~Session(session, _) = s 
+	val _ = _close session
+in 
+	()
+end
+
+implement offer {self,x} {p,q} (s, from) = let 
+
+	extern fun _offer (int x, !pfsession (chse(x,p,q))): int = "mac#libsession_offer"
+
+	val+ @Session(session, _) = s
+	val choice = _offer (from, session)
+in 
+	if choice = 0
+	then let 
+		prval _ = $UN.castview2void session
+		prval _ = fold@s
+		in ChooseFst{p,q}() end
+	else let 
+		prval _ = $UN.castview2void session
+		prval _ = fold@s
+		in ChooseSnd{p,q}() end
+//	else Snd{p,q}()
+end 
+
+implement choose_fst {self} {p,q} (s) = let 
+	extern fun _choose (int 0, !pfsession (chse(self,p,q)) >> pfsession p): void = "mac#libsession_choose"
+
+	val+ @Session (session, _) = s 
+	val _ = _choose (0, session)
+	prval _ = fold@s 
+in 
+	() 
+end 
+
+implement choose_snd {self} {p,q} (s) = let 
+	extern fun _choose (int 1, !pfsession (chse(self,p,q)) >> pfsession q): void = "mac#libsession_choose"
+
+	val+ @Session (session, _) = s 
+	val _ = _choose (1, session)
+	prval _ = fold@s 
+in 
+	() 
+end 
+
 
 ////
 

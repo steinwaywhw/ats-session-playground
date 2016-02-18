@@ -59,7 +59,7 @@ datatype rtsession (protocol) =
 
 
 //vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
-datavtype session (self:int, p:protocol) = Session (self, p) of (pfsession p, rtsession p, int self)
+datavtype session (self:int, p:protocol) = Session (self, p) of (pfsession p, (*rtsession p,*) int self)
 
 (* name *)
 abstype name (protocol) = ptr 
@@ -75,20 +75,20 @@ fun project {self:nat} {gp:protocol} (int self, rtsession gp): [p:protocol] (PRO
 fun is_equal {p,q:protocol} (rtsession p, rtsession q): bool 
 
 (* primitives *)
-fun send    {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(self,x,a) :: p) >> session (self, p), a): void 
-fun receive {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(x,self,a) :: p) >> session (self, p)): a
+fun send    {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(self,x,a) :: p) >> session (self, p), int x, a): void 
+fun receive {self,x:nat|x != self} {p:protocol} {a:vt@ype} (!session (self, msg(x,self,a) :: p) >> session (self, p), int x): a
 
 fun broadcast {self:nat} {p:protocol} {a:vt@ype} (!session (self, msg(self,~1,a) :: p) >> session (self, p), a): void
 
-datatype choice (x:protocol, p:protocol, q:protocol) =
-| Fst (p, p, q) of ()
-| Snd (q, p, q) of ()
+datatype choice (protocol, p:protocol, q:protocol) =
+| ChooseFst (p, p, q) of ()
+| ChooseSnd (q, p, q) of ()
 
-fun offer 	   {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> session (self, x)): #[x:protocol] choice (x, p, q) 
-fun choose_fst {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, p)): void 
-fun choose_snd {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, q)): void
+fun offer 	   {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)) >> session (self, r), int x): #[r:protocol] choice (r, p, q) 
+fun choose_fst {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> session (self, p)): void 
+fun choose_snd {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> session (self, q)): void
 
-fun close {self:nat} (session (self, cls())): void = "mac#%"
+fun close {self:nat} (session (self, cls())): void
 
 fun inspect {self:nat} {p:protocol} (!session (self, p)): void
 ////
