@@ -172,6 +172,8 @@ defmodule Session do
 		session = %SessionData{self: self, parties: parties}
 		init session
 
+		:global.unregister_name({name, self})
+
 		# return endpoint
 		session.parties[session.self]
 	end 
@@ -200,6 +202,7 @@ defmodule Session do
 				end
 		end
 
+		:global.unregister_name({name, self})
 		:ok
 	end 
 

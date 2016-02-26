@@ -8,6 +8,9 @@ abstype skip ()
 abstype msg (int, int, vt@ype)
 abstype chse (int, type, type)
 abstype seqs (type, type)
+abstype init (int)
+abstype rpt (type)
+abstype rptn (type, int)
 
 #define :: seqs
 
@@ -32,6 +35,8 @@ dataprop PROJ (int, protocol, protocol) =
 (* basis *)
 | {self:nat} proj_skip (self, skip(), skip())
 | {self:nat} proj_cls  (self, cls(), cls())
+(* init *)
+| {self:nat} {x:nat} proj_init (self, init x, init x)
 (* skip *)
 | {self:nat} {x,y:nat|x != self && y != self} {a:vt@ype} proj_msg_skip (self, msg(x,y,a), skip())
 (* message *)
@@ -46,6 +51,10 @@ dataprop PROJ (int, protocol, protocol) =
 | {self:nat} {p,pp,q,qq:protocol} proj_seqs 	  (self, p::q, pp::qq) of (PROJ(self,p,pp), PROJ(self,q,qq))
 | {self:nat} {p,q,qq:protocol}    proj_seqs_skipp (self, p::q, qq) of (PROJ(self,p,skip()), PROJ(self,q,qq))
 | {self:nat} {p,pp,q:protocol}	  proj_seqs_skipq (self, p::q, pp) of (PROJ(self,p,pp), PROJ(self,q,skip()))
+(* repeat *)
+(* TODO: repeat skip ?? *)
+| {self:nat} {p,pp:protocol}         proj_rpt  (self, rpt p, rpt pp) of (PROJ (self, p, pp))
+| {self:nat} {n:nat} {p,pp:protocol} proj_rptn (self, rptn (p, n), rptn (pp, n)) of (PROJ (self, p, pp))
 
 
 (* session *)
@@ -53,9 +62,12 @@ absvtype pfsession (protocol) = ptr
 datatype rtsession (protocol) = 
 | rtcls (cls ()) of ()
 | rtskip (skip ()) of ()
+| {x:nat} rtinit (init x) of (int x)
 | {a:vt@ype} {x:nat} {y:int|y >= ~1 && y != x} rtmsg (msg (x, y, a)) of (int x, int y)
 | {x:nat} {p,q:protocol} rtchse (chse (x, p, q)) of (int x, rtsession p, rtsession q)
 | {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
+| {p:protocol} rtrpt (p) of (rtsession p)
+| {n:nat} {p:protocol} rtrptn (p, n) or (rtsession p, int n)
 
 
 //vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
@@ -66,8 +78,10 @@ abstype name (protocol) = ptr
 fun make_name {gp:protocol} (string): name gp = "mac#%"
 
 (* session init *)
-fun request {self,arity:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, int arity): option (session (self, p))
-fun accept  {self:nat} {gp,p:protocol} (PROJ (self, gp, p) | name gp, int self, rtsession gp, option (session (self, p)) -<lincloptr1> void): void
+fun request {self,arity:nat} {gp,p:protocol} (PROJ (self, gp, p) | name (init(self)::gp), int self, rtsession (init(self)::gp), int arity): option (session (self, p))
+fun accept  {self,x:nat|x != self} {gp,p:protocol} (PROJ (self, gp, p) | name (init(x)::gp), int self, rtsession (init(x)::gp), option (session (self, p)) -<lincloptr1> void): void
+
+fun create2 {gp,p,q:protocol} (PROJ (0, gp, p), PROJ (1, gp, q) | name gp, rtsession gp, option (session (1, q)) -<lincloptr1> void): option (session (0, p))
 
 (* project *)
 (* TODO make it internal *)
@@ -88,9 +102,20 @@ fun offer 	   {self,x:nat|x != self} {p,q:protocol} (!session (self, chse(x,p,q)
 fun choose_fst {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> session (self, p)): void 
 fun choose_snd {self:nat} {p,q:protocol} (!session (self, chse(self,p,q)) >> session (self, q)): void
 
+fun unroll_rpt {self:nat} {p,q:protocol} (!session (self, rpt(p)::q) >> session (self, p::rpt(p)::q)): void 
+fun unroll_rptn {self:nat} {n:nat|n > 0} (!session (self, rptn (p, n)) >> session (self, p :: rptn (p, n-1)): void 
+fun unroll_rpt0 {self:nat} (!session (self, rptn (p, 0)) >> )
+
 fun close {self:nat} (session (self, cls())): void
 
 fun inspect {self:nat} {p:protocol} (!session (self, p)): void
+
+
+
+
+
+
+//fun create {} (list (llam session -> void, n-1)): session 
 ////
 
 //vtypedef rtsession (p:protocol, arity:int) = rtsession p 
