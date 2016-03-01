@@ -1,7 +1,12 @@
-PATSCC=patscc -ccats --tlcalopt-disable -IIATS ${PATSHOMERELOC} 
-PATSCCTC=patscc -tcats -IIATS ${PATSHOMERELOC}
+
+PATSOPT=patsopt -IATS ${PATSHOMERELOC} -IATS ~/Git/ats-utils
+PATSOLVE=patsolve_z3 
+PATSCC=patscc -ccats --tlcalopt-disable -IIATS ${PATSHOMERELOC} -IIATS ~/Git/ats-utils
+PATSCCTC=patscc -tcats -IIATS ${PATSHOMERELOC} -IIATS ~/Git/ats-utils
+ATS2ERL=atscc2erl
 ERLC=erlc +debug_info
 ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc 
+
 
 # session.erl: session.&>
 	# $(PATSCC) session.dats 
@@ -9,23 +14,21 @@ ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc
 	# erlc session.erl 
 	# 
 
-lib: session.ex draft.dats
-	rm -f Elixir.Endpoint.beam
-	rm -f Elixir.Session.beam
-	rm -f Elixir.Message.beam
-	rm -f Elixir.SessionData.beam
-	rm -f Elixir.EndpointData.beam
+lib: session.ex
 	$(ELIXIRC) session.ex
-	# $(PATSCC) draft.dats 
-	# atscc2erl -i draft_dats.c > draft.erl 
-	# $(ERLC) session.erl 
-	# rm session.erl 
+
+
 
 test: lib test.dats 
+	$(PATSOPT) -tc --constraint-export -d test.dats | $(PATSOLVE) -i
 	$(PATSCC) test.dats
-	atscc2erl -i test_dats.c > test.erl 
-	$(ERLC) test.erl 
-	rm test.erl
+	# $(ATS2ERL) -i test_dats.c > test.erl 
+	# $(ERLC) test.erl 
+	# rm test.erl
+
+tc: session.sats session.dats
+	$(PATSOPT) -tc --constraint-export -s session.sats | $(PATSOLVE) -i
+	$(PATSOPT) -tc --constraint-export -d session.dats | $(PATSOLVE) -i
 
 # server: lib server.dats
 # 	$(PATSCC) server.dats
@@ -44,5 +47,3 @@ test: lib test.dats
 clean:
 	rm -f *.beam 
 	rm -f *ats.c 
-	rm -f *.dat 
-	rm test.erl 
