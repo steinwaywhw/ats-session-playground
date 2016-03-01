@@ -3,51 +3,51 @@
 staload "intset.sats"
 
 
-
-
-
-
-(*
-
 datasort protocol = (* abstract *)
 
 
 stacst cls: () -> protocol
 stacst skip: () -> protocol
 stacst msg: (int, int, vt@ype) -> protocol
-stacst mmsg: (set, set, vt@ype) -> protocol
+//stacst mmsg: (set, set, vt@ype) -> protocol
 stacst seqs: (protocol, protocol) -> protocol
-stacst chse: (int, protocol, protocol) -> protocol
+//stacst chse: (int, protocol, protocol) -> protocol
 stacst init: (set) -> protocol
-stacst rpt: (int, protocol) -> protocol
+//stacst rpt: (int, protocol) -> protocol
 
-//stacst type_eq: (vt@ype, vt@ype) -> bool
 
 stacst proto_proj: (protocol, set) -> protocol
 stacst proto_eq: (protocol, protocol) -> bool
 
+(**)
+
+
 stadef == = proto_eq 
 stadef @@ = proto_proj 
 stadef :: = seqs
-//stadef == = type_eq
 
 infix 30 ==
 infix 31 @@
 infixr 40 ::
 
-//praxi type_eq {a:vt@ype} (): [a==a] unit_p
-praxi proto_eq_cls (): [cls() == cls()] unit_p
-praxi proto_eq_skip (): [skip() == skip()] unit_p
-praxi proto_eq_msg {x1,y1,x2,y2:int|x1==x2 && y1==y2} {a:vt@ype} (): [msg(x1,y1,a) == msg(x2,y2,a)] unit_p
-//praxi proto_eq_seqs {p1,p2,q1,q2:protocol|q1==q2 && p1==p2} (): [p1::p2 == q1::q2] unit_p
+(**)
+
+praxi proto_eq_cls (): [cls()==cls()] unit_p
+praxi proto_eq_skip (): [skip()==skip()] unit_p
+praxi proto_eq_msg {x,y:nat} {a:vt@ype} (): [msg(x,y,a)==msg(x,y,a)] unit_p
+praxi proto_eq_seqs {p,q:protocol} (): [p::q==p::q] unit_p
+praxi proto_eq_init {s:set} (): [init(s)==init(s)] unit_p
 
 absvtype session (protocol)
 
 
 fun test(): session(msg(1,2,int)::cls())
-fun test2 {p:protocol} {a:vt@ype} (!session(msg(1,2,a)::p) >> session p): void 
+fun test2 {p:protocol} (!session(msg(1,2,int)::p) >> session p): void 
 fun test3 (session(cls())): void
-*)
+
+
+
+////
 
 (* protocol *)
 sortdef protocol = type 
@@ -123,6 +123,7 @@ typedef rtsessionref (s:set, p:protocol) = ref (rtsession (s, p))
 
 //vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
 datavtype session (self:set, p:protocol, s:set, gp:protocol) = 
+
 	| Session (self, p, s, gp) of (pfsession (self, p), set self, rtsessionref (self, p), set s, rtsession (s, gp))
 
 

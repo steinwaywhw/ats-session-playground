@@ -9,6 +9,20 @@ infixr ::
 staload "intset.sats"
 dynload "intset.dats"
 
+
+
+prval _ = $solver_assert (proto_eq_cls)
+prval _ = $solver_assert (proto_eq_skip)
+prval _ = $solver_assert (proto_eq_msg)
+prval _ = $solver_assert (proto_eq_seqs)
+prval _ = $solver_assert (proto_eq_init)
+
+
+val session = test ()
+val _ = test2 session 
+val _ = test3 session
+
+////
 #define ** rtseqs
 #define ++ proj_seqs
 #define -+ proj_seqs_skipp
