@@ -9,26 +9,8 @@ infixr ::
 staload "intset.sats"
 dynload "intset.dats"
 
-
-
-prval _ = $solver_assert (proto_eq_cls)
-prval _ = $solver_assert (proto_eq_skip)
-prval _ = $solver_assert (proto_eq_msg)
-prval _ = $solver_assert (proto_eq_seqs)
-prval _ = $solver_assert (proto_eq_init)
-
-
-val session = test ()
-val _ = test2 session 
-val _ = test3 session
-
-////
-#define ** rtseqs
-#define ++ proj_seqs
-#define -+ proj_seqs_skipp
 infixr ** 
-infixr ++
-infixr -+
+#define ** rtseqs
 
 #define BUYER1 1
 #define BUYER2 2
@@ -37,9 +19,8 @@ infixr -+
 #define PROTO_OK (msg(BUYER2,SELLER,string) :: msg(SELLER,BUYER2,string) :: cls())
 #define PROTO_CLS (cls())
 
-#define PROTO (init(range(0,2)) :: msg(BUYER1,SELLER,string) :: msg(SELLER,BUYER1,int) :: msg(SELLER,BUYER2,int) :: msg(BUYER1,BUYER2,int) :: chse(BUYER2, PROTO_OK, PROTO_CLS))
-
-#define PROTO_RT (rtinit(set_range(0,2)) ** rtmsg(BUYER1,SELLER) ** rtmsg(SELLER,BUYER1) ** rtmsg(SELLER, BUYER2) ** rtmsg(BUYER1, BUYER2) ** rtchse(BUYER2, rtmsg(BUYER2,SELLER) ** rtmsg(SELLER,BUYER2) ** rtcls(), rtcls()))
+#define PROTO (msg(BUYER1,SELLER,string) :: msg(SELLER,BUYER1,int) :: msg(SELLER,BUYER2,int) :: msg(BUYER1,BUYER2,int) :: chse(BUYER2, PROTO_OK, PROTO_CLS))
+#define PROTO_RT (rtmsg(BUYER1,SELLER) ** rtmsg(SELLER,BUYER1) ** rtmsg(SELLER,BUYER2) ** rtmsg(BUYER1,BUYER2) ** rtchse(BUYER2, rtmsg(BUYER2,SELLER) ** rtmsg(SELLER,BUYER2) ** rtcls(), rtcls()))
 
 
 
@@ -50,29 +31,25 @@ prval _ = $solver_assert (set_range_ind)
 prval _ = $solver_assert (set_range_lemma1)
 prval _ = $solver_assert (set_range_lemma2)
 
-val parties = set_range (0, 2)
-val name = make_name {range(0,2)} {PROTO} (parties, "test")
-val rt = PROTO_RT
+val name = make_name {range(0,2)} {PROTO} (set_range(0,2), PROTO_RT, "test")
 
-prval pf1 = proj_msg_from() ++ proj_msg_to() ++ proj_msg_skip() -+ proj_msg_from() ++ proj_chse(proj_msg_skip() -+ proj_msg_skip() -+ proj_cls(), proj_cls())
-prval pf12 = proj_msg_from() ++ proj_msg_to() ++ proj_msg_to() ++ proj_msg_self() -+ proj_chse(proj_msg_from() ++ proj_msg_to() ++ proj_cls(), proj_cls())
-
-val _ = init (pf1 | name, parties, rt, set_add(empty_set(), 1), 
+val _ = init (name, set_add(empty_set(), 1), 
 			llam opt =>
 				case+ opt of 
 				| ~None () => ()
 				| ~Some (session) => () where {
 					val _ = send (session, "a book title")
 					val price = receive (session)
+					val _ = skip_msg session
 					val _ = send (session, price / 2)
 					val choice = offer session
 					val _ = 
 						case+ choice of 
-						| ~ChooseFst () => close session 
+						| ~ChooseFst () => (skip_msg session; skip_msg session; close session)
 						| ~ChooseSnd () => close session
 				})
 
-val _ = init (pf12 | name, parties, rt, set_range(1,2), 
+val _ = init (name, set_range(1,2), 
 			llam opt => 
 				case+ opt of 
 				| ~None () => ()
@@ -80,6 +57,7 @@ val _ = init (pf12 | name, parties, rt, set_range(1,2),
 					val _ = send (session, "a book title")
 					val price = receive session 
 					val _ = receive session 
+					val _ = skip_msg session
 					val _ = choose_fst session 
 					val _ = send (session, "my address")
 					val date = receive session 

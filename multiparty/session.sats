@@ -2,53 +2,6 @@
 
 staload "intset.sats"
 
-
-datasort protocol = (* abstract *)
-
-
-stacst cls: () -> protocol
-stacst skip: () -> protocol
-stacst msg: (int, int, vt@ype) -> protocol
-//stacst mmsg: (set, set, vt@ype) -> protocol
-stacst seqs: (protocol, protocol) -> protocol
-//stacst chse: (int, protocol, protocol) -> protocol
-stacst init: (set) -> protocol
-//stacst rpt: (int, protocol) -> protocol
-
-
-stacst proto_proj: (protocol, set) -> protocol
-stacst proto_eq: (protocol, protocol) -> bool
-
-(**)
-
-
-stadef == = proto_eq 
-stadef @@ = proto_proj 
-stadef :: = seqs
-
-infix 30 ==
-infix 31 @@
-infixr 40 ::
-
-(**)
-
-praxi proto_eq_cls (): [cls()==cls()] unit_p
-praxi proto_eq_skip (): [skip()==skip()] unit_p
-praxi proto_eq_msg {x,y:nat} {a:vt@ype} (): [msg(x,y,a)==msg(x,y,a)] unit_p
-praxi proto_eq_seqs {p,q:protocol} (): [p::q==p::q] unit_p
-praxi proto_eq_init {s:set} (): [init(s)==init(s)] unit_p
-
-absvtype session (protocol)
-
-
-fun test(): session(msg(1,2,int)::cls())
-fun test2 {p:protocol} (!session(msg(1,2,int)::p) >> session p): void 
-fun test3 (session(cls())): void
-
-
-
-////
-
 (* protocol *)
 sortdef protocol = type 
 
@@ -57,23 +10,24 @@ abstype skip ()
 abstype msg (int, int, vt@ype)
 abstype mmsg (set, set, vt@ype)
 abstype chse (int, type, type)
-abstype chse3 (int, type, type, type)
-abstype chse4 (int, type, type, type, type)
+//abstype chse3 (int, type, type, type)
+//abstype chse4 (int, type, type, type, type)
 abstype seqs (type, type)
 abstype init (set)
 abstype rpt (int, type)
 
-#define :: seqs
 infixr :: 
+#define :: seqs
 
-#define ^* rpt 
-postfix ^*
+//postfix ^* 
+//#define ^* rpt 
 
 (* util *)
 datavtype option (a:vtype) =
 | Some (a) of a 
 | None (a) 
 
+(*
 (* projection *)
 dataprop PROJ (self:set, protocol, protocol) = 
 (* basis *)
@@ -103,102 +57,103 @@ dataprop PROJ (self:set, protocol, protocol) =
 (* repeat *)
 | {x:nat} {p,pp:protocol} proj_rpt      (self, rpt(x,p), rpt(x,pp)) of (PROJ(self,p,pp))
 | {x:nat} {p:protocol}    proj_rpt_skip (self, rpt(x,p), skip()) of (PROJ(self,p,skip()))
-
+*)
 
 (* session *)
-absvtype pfsession (set, protocol) = ptr 
-datatype rtsession (s:set, protocol) = 
-| rtcls (s,cls ()) of ()
-| rtskip (s,skip ()) of ()
-| rtinit (s,init s) of (set s)
-| {a:vt@ype} {x,y:nat|(x != y)*mem(x,s)*mem(y,s)} rtmsg (s, msg (x, y, a)) of (int x, int y)
-| {a:vt@ype} {x,y:set|(cap(x,y)==empty_set())*sub(x,s)*sub(y,s)} rtmmsg (s, mmsg (x, y, a)) of (set x, set y) 
-| {x:nat|mem(x,s)} {p,q:protocol} rtchse (s, chse (x, p, q)) of (int x, rtsession(s,p), rtsession(s,q))
-| {x:nat|mem(x,s)} {p,q,r:protocol} rtchse3 (s, chse3 (x, p, q, r)) of (int x, rtsession(s,p), rtsession(s,q), rtsession(s,r))
-| {x:nat|mem(x,s)} {p,q,r,t:protocol} rtchse4 (s, chse4 (x, p, q, r, t)) of (int x, rtsession(s,p), rtsession(s,q), rtsession(s,r), rtsession(s,t))
-| {p,q:protocol} rtseqs (s, seqs (p, q)) of (rtsession(s,p), rtsession(s,q))
-| {x:nat|mem(x,s)} {p:protocol} rtrpt (s, rpt (x, p)) of (rtsession(s,p))
+absvtype pfsession (protocol) = ptr 
+datatype rtsession (protocol) = 
+| rtcls (cls ()) of ()
+| rtskip (skip ()) of ()
+| {s:set} rtinit (init s) of (set s)
+| {a:vt@ype} {x,y:nat|x != y} rtmsg (msg (x, y, a)) of (int x, int y)
+| {a:vt@ype} {x,y:set|cap(x,y)==empty_set()} rtmmsg (mmsg (x, y, a)) of (set x, set y) 
+| {x:nat} {p,q:protocol} rtchse (chse (x, p, q)) of (int x, rtsession p, rtsession q)
+//| {x:nat} {p,q,r:protocol} rtchse3 (chse3 (x, p, q, r)) of (int x, rtsession p, rtsession q, rtsession r)
+//| {x:nat} {p,q,r,t:protocol} rtchse4 (chse4 (x, p, q, r, t)) of (int x, rtsession p, rtsession q, rtsession r, rtsession t)
+| {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
+| {x:nat} {p:protocol} rtrpt (rpt (x, p)) of (rtsession p)
 
-typedef rtsessionref (s:set, p:protocol) = ref (rtsession (s, p))
+typedef rtsessionref (p:protocol) = ref (rtsession p)
 
 //vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
-datavtype session (self:set, p:protocol, s:set, gp:protocol) = 
-
-	| Session (self, p, s, gp) of (pfsession (self, p), set self, rtsessionref (self, p), set s, rtsession (s, gp))
-
+absvtype session (self:set, s:set, gp:protocol)
+//	| Session (self, s, gp) of (pfsession gp, rtsessionref gp, set self, set s)
 
 (* name *)
 abstype name (set, protocol) = ptr 
-fun make_name {s:set} {gp:protocol} (set s, string): name (s, gp)
+fun make_name {s:set} {gp:protocol} (set s, rtsession (gp), string): name (s, init(s)::gp)
 
 (* session init *)
 fun init 
-	{self,s:set|sub(self,s)} {gp,p:protocol} 
-	(PROJ (self, gp, p) 
-	| name (s, init(s)::gp), set s, rtsession (s, init(s)::gp), set self, option (session (self, p, s, gp)) -<lincloptr1> void)
+	{self,s:set|sub(self,s)} {gp:protocol} 
+	(name (s, init(s)::gp), set self, option (session (self, s, gp)) -<lincloptr1> void)
 	: void 
 
 
 fun create 
-	{x,y,s:set|(cup(x,y)==s)*(cap(x,y)==empty_set())} {gp,p,q:protocol} 
-	(PROJ(x,gp,p), PROJ(y,gp,q) 
-	| rtsession(s,gp), option(session(x,p,s,gp)) -<lincloptr1> void, option(session(y,q,s,gp)) -<lincloptr1> void)
-	: void
+	{x,y,s:set|(cup(x,y)==s)*(cap(x,y)==empty_set())} {gp:protocol}
+	(set x, rtsession (init(s)::gp), option (session (y,s,gp)) -<lincloptr1> void) 
+	: option (session (x,s,gp))
 
 
 (* project *)
 (* TODO make it internal *)
-fun project {self,s:set} {gp:protocol} (set self, rtsession (s, gp)) : [p:protocol] (PROJ (self, gp, p) | rtsession (self, p))
-fun is_equal {s,r:set} {p,q:protocol} (rtsession (s,p), rtsession (r,q)): bool 
+//fun project {self,s:set} {gp:protocol} (set self, rtsession (s, gp)) : [p:protocol] (PROJ (self, gp, p) | rtsession (self, p))
+fun is_equal {p,q:protocol} (rtsession p, rtsession q): bool 
 
 (* primitives *)
 fun send    
-	{self,s:set} {x,y:nat|mem(x,self) * ~mem(y,self)} {p,gp:protocol} {a:vt@ype} 
-	(!session (self, msg(x,y,a) :: p, s, gp) >> session (self, p, s, gp), a)
+	{self,s:set} {x,y:nat|mem(x,self) * ~mem(y,self)} {gp:protocol} {a:vt@ype} 
+	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), a)
 	: void 
 
 fun receive 
-	{self,s:set} {x,y:nat|mem(y,self) * ~mem(x,self)} {p,gp:protocol} {a:vt@ype} 
-	(!session (self, msg(x,y,a) :: p, s, gp) >> session (self, p, s, gp))
+	{self,s:set} {x,y:nat|mem(y,self) * ~mem(x,self)} {gp:protocol} {a:vt@ype} 
+	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp))
 	: a
 
-fun close 
-	{self,s:set} {gp:protocol}
-	(session (self, cls(), s, gp))
+fun skip_msg
+	{self,s:set} {x,y:nat|(~mem(x,self) * ~mem(y,self)) + (x==y)} {gp:protocol} {a:vt@ype}
+	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp))
 	: void 
 
-//fun broadcast {self:nat} {p:protocol} {a:vt@ype} (!session (self, msg(self,~1,a) :: p) >> session (self, p), a): void
+fun skip_mmsg
+	{self,s:set} {x,y:set|(cap(self,x)==empty_set()) * (cap(self,y)==empty_set())} {gp:protocol} {a:vt@ype}
+	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, gp))
+	: void 
 
-fun merge 
-	{x,y,s:set|(cap(x,y)==empty_set())} {p,q,r,gp:protocol} 
-	(PROJ (cup(x,y), r, gp) 
-	| session(x,p,s,gp), session(y,q,s,gp))
-	: session(cup(x,y),r,s,gp)
+fun proj_mmsg 
+	{self,s:set} {x,y:set} {gp:protocol} {a:vt@ype}
+	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, mmsg(cap(x,self), dif(y,self), a)::mmsg(dif(x,self), cap(y,self), a)::gp))
+	: void
+
+fun close 
+	{self,s:set}
+	(session (self, s, cls()))
+	: void 
 
 fun link 
-	{x,y,s:set|not(cap(x,y)==empty_set())} {p,q,r,gp:protocol} 
-	(PROJ (dif(s,cup(dif(s,x),dif(s,y))), r, gp)
-	| session(x,p,s,gp), session(y,q,s,gp))
-	: session(dif(s,cup(dif(s,x),dif(s,y))),r,s,gp)
-
+	{x,y,s:set|(dif(s,x) \cap dif(s,y))==empty_set()} {gp:protocol}
+	(session (x,s,gp), session (y,s,gp))
+	: session (dif(s, (dif(s,x) \cup dif(s,y))), s, gp) 
 
 datavtype choice (protocol, p:protocol, q:protocol) =
 | ChooseFst (p, p, q) of ()
 | ChooseSnd (q, p, q) of ()
 
 fun offer 	   
-	{self,s:set} {x:nat|(~mem(x,self))} {p,q,gp:protocol} 
-	(!session (self, chse(x,p,q), s, gp) >> session (self, r, s, gp))
+	{self,s:set} {x:nat|(~mem(x,self))} {p,q:protocol} 
+	(!session (self, s, chse(x,p,q)) >> session (self, s, r))
 	: #[r:protocol] choice (r, p, q)
 
 fun choose_fst 
-	{self,s:set} {x:nat|mem(x,self)} {p,q,gp:protocol} 
-	(!session (self, chse(x,p,q), s, gp) >> session (self, p, s, gp))
+	{self,s:set} {x:nat|mem(x,self)} {p,q:protocol} 
+	(!session (self, s, chse(x,p,q)) >> session (self, s, p))
 	: void 
 
 fun choose_snd 
-	{self,s:set} {x:nat|mem(x,self)} {p,q,gp:protocol} 
-	(!session (self, chse(x,p,q), s, gp) >> session (self, q, s, gp))
+	{self,s:set} {x:nat|mem(x,self)} {p,q:protocol} 
+	(!session (self, s, chse(x,p,q)) >> session (self, s, q))
 	: void
 
 
