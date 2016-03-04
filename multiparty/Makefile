@@ -44,6 +44,11 @@ tc: session.sats session.dats
 # 	$(ERLC) test_link_client.erl test_link_server.erl test_link_middle.erl 
 # 	rm test_link_client.erl test_link_server.erl test_link_middle.erl 
 
+testerl: test_datatype.dats 
+	$(PATSCC) test_datatype.dats 
+	$(ATS2ERL) -i test_datatype_dats.c > test_datatype.erl 	
+
+
 clean:
 	rm -f *.beam 
 	rm -f *ats.c 

@@ -1,16 +1,26 @@
-staload "session.sats"
-
+#define ATS_EXTERN_PREFIX "libsession_"
+#include "contrib/libatscc/libatscc2erl/staloadall.hats"
 
 staload UN = "prelude/SATS/unsafe.sats"
-#define :: seqs 
-infixr ::
-
-#define ATS_EXTERN_PREFIX "libsession_"
+staload "session.sats"
 staload "intset.sats"
 dynload "intset.dats"
 
+//staload OP = "session.sats"
+
+infixr ::
+#define :: seqs 
+
 infixr ** 
 #define ** rtseqs
+
+assume name (s:set, p:protocol) = (set s, rtsession p, atom)
+
+vtypedef rtsessionref (p:protocol) = ref_vt (rtsession p)
+datavtype _session (self:set, s:set, gp:protocol) = Session (self, s, gp) of (pfsession gp, rtsessionref gp, set self, set s)
+assume session (self:set, s:set, gp:protocol) = _session (self, s, gp)
+
+(* TEST *)
 
 #define BUYER1 1
 #define BUYER2 2
@@ -21,8 +31,6 @@ infixr **
 
 #define PROTO (msg(BUYER1,SELLER,string) :: msg(SELLER,BUYER1,int) :: msg(SELLER,BUYER2,int) :: msg(BUYER1,BUYER2,int) :: chse(BUYER2, PROTO_OK, PROTO_CLS))
 #define PROTO_RT (rtmsg(BUYER1,SELLER) ** rtmsg(SELLER,BUYER1) ** rtmsg(SELLER,BUYER2) ** rtmsg(BUYER1,BUYER2) ** rtchse(BUYER2, rtmsg(BUYER2,SELLER) ** rtmsg(SELLER,BUYER2) ** rtcls(), rtcls()))
-
-
 
 local
 
@@ -36,8 +44,8 @@ val name = make_name {range(0,2)} {PROTO} (set_range(0,2), PROTO_RT, "test")
 val _ = init (name, set_add(empty_set(), 1), 
 			llam opt =>
 				case+ opt of 
-				| ~None () => ()
-				| ~Some (session) => () where {
+				| ~Nothing () => ()
+				| ~Just (session) => () where {
 					val _ = send (session, "a book title")
 					val price = receive (session)
 					val _ = skip_msg session
@@ -52,8 +60,8 @@ val _ = init (name, set_add(empty_set(), 1),
 val _ = init (name, set_range(1,2), 
 			llam opt => 
 				case+ opt of 
-				| ~None () => ()
-				| ~Some (session) => () where {
+				| ~Nothing () => ()
+				| ~Just (session) => () where {
 					val _ = send (session, "a book title")
 					val price = receive session 
 					val _ = receive session 
@@ -68,11 +76,6 @@ in
 end 
 
 
-
-
-
-
-////
 //implement inspect {self} {p} (session) = let 
 //	val+ Session (_, rt, self) = session 
 //	val _ = println! ("Inspecting Session:")
@@ -90,17 +93,196 @@ end
 //		| rtchse (a, b, p, q) => (spaces (level*2); println! ("chse(", a, "->", b); show (level+1, p); show (level+1,q))
 //		| rtseqs (p, q) => (spaces (level*2); show (level, p); show (level, q))
 
+(**)
+local 
+(**)
+
+prval _ = $solver_assert (set_range_base)
+prval _ = $solver_assert (set_range_ind)
+prval _ = $solver_assert (set_range_lemma1)
+prval _ = $solver_assert (set_range_lemma2)
+
+typedef erlval = ERLval
+
+extern fun is_pid (erlval): bool = "mac#is_pid"
+extern fun spawn (() -<lincloptr1> void): pid = "mac#%"
+extern fun spawn_link (() -<lincloptr1> void): pid = "mac#%"
+extern fun make_ref (): erlval = "mac#%"
+
+fun set2erl {s:set} (s: set s): erlval = let 
+	datatype _set (set) = 
+	| Empty (empty_set ()) of ()
+	| {s:set} {n:int | ~mem(n, s)} Elem (set_add (s, n)) of (int n, set s)
+
+	assume set (s:set) = _set s
+
+	fun set_reduce {s:set} (s: set s, base: erlval, f: (int, erlval) -<cloref1> erlval): erlval = 
+		case+ s of 
+		| Empty () => base 
+		| Elem (n, s) => f (n, set_reduce (s, base, f))
+
+	extern fun _set2erl (set s, (set s, erlval, (int, erlval) -<cloref1> erlval) -<cloref1> erlval): erlval = "mac#%"
+in 
+	_set2erl (s, lam (s, base, f) => set_reduce (s, base, f))
+end
+
+
+(**)
+in 
+(**)
+
+implement make_name {s} {gp} (parts, rt, name) = (parts, rtinit (parts) ** rt, string2atom name)
+
 implement is_equal {p,q} (x, y) = 
 	case+ (x, y) of 
 	| (rtcls (), rtcls ()) => true 
 	| (rtskip (), rtskip ()) => true 
 	| (rtmsg (x1, y1), rtmsg (x2, y2)) => x1 = x2 andalso y1 = y2
+	| (rtmmsg (x1, y1), rtmmsg (x2, y2)) => x1 = x2 andalso y1 = y2
 	| (rtchse (x1, p1, q1), rtchse (x2, p2, q2)) => x1 = x2 andalso is_equal (p1, p2) andalso is_equal (q1, q2)
 	| (rtseqs (x1, y1), rtseqs (x2, y2)) => is_equal (x1, x2) andalso is_equal (y1, y2)
+	| (rtrpt (p), rtrpt (q)) => is_equal (p, q)
 	| (_, _) =>> false
 
 
-implement request {self,arity} {gp,p} (pf | name, self, gp, arity) = let 
+implement init {self,s} {gp} (name, self, loop) = let 
+	val parts = name.0
+	val rt = name.1
+	val atom = name.2
+
+	extern fun _init (
+		name: atom, 
+		rt: rtsession (init(s)::gp), 
+		check: rtsession (init(s)::gp) -<cloref1> bool, 
+		self: erlval, 
+		parts: erlval)
+		: erlval = "mac#%"
+
+
+	(* put the blocking init into a separate thread *)
+	val _ = spawn (
+		llam () => let 
+			(* register, block wait, check, and return either pid or :no *)
+			val pid = _init (atom, rt, lam other => is_equal (other, rt), set2erl self, set2erl parts)
+
+			val rtinit (_) ** rt = rt 
+
+			(* create maybe (session) *)
+			val session = 
+				(if is_pid pid 
+ 				 then Just (Session ($UN.castvwtp0{pfsession gp}(pid), ref_vt rt, self, parts))
+				 else Nothing ()
+				): maybe (session (self, s, gp))
+
+			val _ = loop session 
+			prval _ = $UN.cast2void loop 
+		in 
+		end)
+in
+	()
+end
+
+implement create {x,y,s} {gp} (self, rt, fother) = let 
+
+	val random = make_ref ()
+	val+ rtinit(parts) ** _ = rt
+	val other = set_difference (parts, self)
+
+	extern fun _init (
+		name: erlval, 
+		rt: rtsession (init(s)::gp), 
+		check: rtsession (init(s)::gp) -<cloref1> bool, 
+		self: erlval, 
+		parts: erlval)
+		: erlval = "mac#%"
+
+	(* create the other *)
+	val _ = spawn (
+		llam () => let 
+			(* register, block wait, check, and return either pid or :no *)
+			val pid = _init (random, rt, lam other => is_equal (other, rt), set2erl other, set2erl parts)
+
+			val rtinit (_) ** rt = rt 
+
+			(* create maybe (session) *)
+			val session = 
+				(if is_pid pid 
+ 				 then Just (Session ($UN.castvwtp0{pfsession gp}(pid), ref_vt rt, other, parts))
+				 else Nothing ()
+				): maybe (session (y, s, gp))
+
+			val _ = fother session 
+			prval _ = $UN.cast2void fother 
+		in 
+		end)
+
+	(* create my self *)
+	val pid = _init (random, rt, lam other => is_equal (other, rt), set2erl self, set2erl parts)
+	val rtinit (_) ** rt = rt 
+	(* create maybe (session) *)
+	val session = 
+		(if is_pid pid 
+			 then Just (Session ($UN.castvwtp0{pfsession gp} pid, ref_vt rt, self, parts))
+		 else Nothing ()
+		): maybe (session (x, s, gp))
+
+in 
+	session 
+end
+
+
+
+
+//implement send {self,s} {x,y} {gp} {a} (session, payload) = let 
+
+
+//	val+ @Session(pf, rtref, self, s) = (session) : session (self, s, msg(x,y,a)::gp)
+//	val+ rtmsg(from, to) ** rest = (rtref[]) : rtsession (msg(x,y,a)::gp)
+
+//	extern fun _send (!pfsession (msg(x, y, a) :: gp) >> pfsession gp, int x, int y, a): void = "mac#%"
+//	val _ = _send (pf, from, to, payload)
+//	val _ = rtref[] := rest 
+//	prval _ = $UN.cast2void payload
+//	prval _ = fold@session
+//in 
+//	()
+//end
+
+implement receive {self,s} {x,y} {gp} {a} (ss) = let 
+
+	extern fun _recv (!pfsession (msg(x,y,a)::gp) >> pfsession gp, int x, int y): a = "mac#%"
+
+	val+ @Session(pf, rtref, self, s) = ss : session (self, s, msg(x,y,a)::gp)
+	val rtmsg(from, to) ** rest = rtref[]
+
+	val res = _recv (pf, from, to)
+	val _ = rtref[] := rest 
+	prval _ = fold@ss 
+
+in 
+	res 
+end 
+
+//	val ret = _recv (from, session)
+//	prval _ = fold@s 
+//in 
+//	ret 
+//end 
+
+//implement broadcast {self} {p} {a} (s, payload) = let 
+
+
+
+
+
+
+
+(**)
+end
+(**)
+
+////
+(*implement request {self,arity} {gp,p} (pf | name, self, gp, arity) = let 
 	val (pf0 | proj) = project (self, gp)
 	val proj = $UN.cast{rtsession p} proj
 
@@ -109,7 +291,7 @@ implement request {self,arity} {gp,p} (pf | name, self, gp, arity) = let
 	extern fun _request (name: name gp, rt: rtsession gp, self: int self, arity: int arity): pfsession p = "mac#libsession_request"
 	val session = _request (name, gp, self, arity)
 in 
-	Some (Session(session, (*proj, *)self))
+	Just (Session(session, (*proj, *)self))
 end 
 
 implement accept {self} {gp,p} (pf | name, self, gp, task) = let 
@@ -124,7 +306,7 @@ in
 		self, 
 		llam session => 
 			let 	
-				val _ = task (Some (Session (session, (*proj, *)self)))
+				val _ = task (Just (Session (session, (*proj, *)self)))
 				prval _ = $UN.cast2void task
 				//val _ = cloptr_free ($UN.castvwtp0{cloptr0} task)
 			in 
@@ -166,7 +348,7 @@ implement project {self} {gp} (self, gp) =
 			| (pp, qq) =>> (proj_seqs (pfpp, pfqq) | rtseqs (pp, qq))
 		end 
 
-
+*)
 
 
 implement send {self,x} {p} {a} (s, to, payload) = let 
@@ -430,8 +612,6 @@ implement project {x} {gp} {arity} (self, gs) = let
 in 
 	(pf | '{s=pfproj, r=rtproj, self=self, arity=gs.arity})
 end
-
-
 
 
 

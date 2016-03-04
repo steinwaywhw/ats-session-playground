@@ -23,9 +23,9 @@ infixr ::
 //#define ^* rpt 
 
 (* util *)
-datavtype option (a:vtype) =
-| Some (a) of a 
-| None (a) 
+datavtype maybe (a:vtype) =
+| Just (a) of a 
+| Nothing (a) 
 
 (*
 (* projection *)
@@ -73,27 +73,30 @@ datatype rtsession (protocol) =
 | {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
 | {x:nat} {p:protocol} rtrpt (rpt (x, p)) of (rtsession p)
 
-typedef rtsessionref (p:protocol) = ref (rtsession p)
 
 //vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}
 absvtype session (self:set, s:set, gp:protocol)
+//#include "contrib/libatscc/libatscc2erl/staloadall.hats"
+//vtypedef rtsessionref (p:protocol) = ref_vt (rtsession p)
+//datavtype session (self:set, s:set, gp:protocol) = Session (self, s, gp) of (pfsession gp, rtsessionref gp, set self, set s)
+
 //	| Session (self, s, gp) of (pfsession gp, rtsessionref gp, set self, set s)
 
 (* name *)
-abstype name (set, protocol) = ptr 
+abst@ype name (set, protocol)
 fun make_name {s:set} {gp:protocol} (set s, rtsession (gp), string): name (s, init(s)::gp)
 
 (* session init *)
 fun init 
 	{self,s:set|sub(self,s)} {gp:protocol} 
-	(name (s, init(s)::gp), set self, option (session (self, s, gp)) -<lincloptr1> void)
+	(name (s, init(s)::gp), set self, maybe (session (self,s,gp)) -<lincloptr1> void)
 	: void 
 
 
 fun create 
 	{x,y,s:set|(cup(x,y)==s)*(cap(x,y)==empty_set())} {gp:protocol}
-	(set x, rtsession (init(s)::gp), option (session (y,s,gp)) -<lincloptr1> void) 
-	: option (session (x,s,gp))
+	(set x, rtsession (init(s)::gp), maybe (session (y,s,gp)) -<lincloptr1> void) 
+	: maybe (session (x,s,gp))
 
 
 (* project *)
