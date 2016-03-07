@@ -370,7 +370,7 @@ in
 		in ChooseSnd {p,q} () end 
 end 
 
-implement choose_fst {self,s} {x} {p,q} (session, x) = let 
+implement choose_fst {self,s} {x} {p,q} (session) = let 
 	extern fun _choose (!pfsession (chse(x,p,q)) >> pfsession p, int 0): void = "mac#%"
 
 	val+ @Session (pf, self, s) = session 
@@ -380,7 +380,7 @@ in
 	() 
 end 
 
-implement choose_snd {self,s} {x} {p,q} (session, x) = let 
+implement choose_snd {self,s} {x} {p,q} (session) = let 
 	extern fun _choose (!pfsession (chse(x,p,q)) >> pfsession q, int 1): void = "mac#%"
 
 	val+ @Session (pf, self, s) = session 

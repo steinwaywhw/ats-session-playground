@@ -44,9 +44,11 @@ libsession__recv(Session, From)
 
 libsession__link(SessionA, SessionB)
 	-> 'Elixir.Endpoint':link(SessionA, SessionB). 
-	
-libsession__offer(Session, From) -> nil. 
-libsession__choose(Session, Choice) -> nil.
+
+libsession__offer(Session, From) 
+	-> 'Elixir.Endpoint':offer(Session, From). 
+libsession__choose(Session, Choice)
+	-> 'Elixir.Endpoint':choose(Session, Choice).
 
 
 % libsession_send(Payload, To, Session)      -> 'Elixir.Endpoint':send(Payload, To, Session).

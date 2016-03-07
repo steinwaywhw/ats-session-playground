@@ -6,6 +6,7 @@ defmodule App do
 		Node.connect :a@localhost
 		Node.connect :b@localhost
 		Node.connect :c@localhost
+		Node.connect :d@localhost
 
 		nodes = [node() | Node.list()]
 		Enum.each nodes, fn node -> 

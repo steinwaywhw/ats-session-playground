@@ -165,12 +165,12 @@ fun offer
 
 fun choose_fst 
 	{self,s:set} {x:nat|mem(x,self)} {p,q:protocol} 
-	(!session (self, s, chse(x,p,q)) >> session (self, s, p), int x)
+	(!session (self, s, chse(x,p,q)) >> session (self, s, p))
 	: void 
 
 fun choose_snd 
 	{self,s:set} {x:nat|mem(x,self)} {p,q:protocol} 
-	(!session (self, s, chse(x,p,q)) >> session (self, s, q), int x)
+	(!session (self, s, chse(x,p,q)) >> session (self, s, q))
 	: void
 
 

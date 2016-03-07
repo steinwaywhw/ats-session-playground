@@ -46,8 +46,11 @@ infixr (::) **
 #define BUYER3 3
 
 #define :: seqs
-#define PROTO (msg(BUYER1,SELLER,string)::msg(SELLER,BUYER1,int)::msg(SELLER,BUYER2,int)::cls())
-#define RT (rtmsg(BUYER1,SELLER)**rtmsg(SELLER,BUYER1)**rtmsg(SELLER,BUYER2)**rtcls())
+#define PROTO (msg(BUYER1,SELLER,string)::msg(SELLER,BUYER1,int)::msg(SELLER,BUYER2,int)::msg(BUYER1,BUYER2,int)::chse(BUYER2,msg(BUYER2,SELLER,string)::msg(SELLER,BUYER2,string)::cls(),cls()))
+#define RT (rtmsg(BUYER1,SELLER)**rtmsg(SELLER,BUYER1)**rtmsg(SELLER,BUYER2)**rtmsg(BUYER1,BUYER2)**rtchse(BUYER2, rtmsg(BUYER2,SELLER)**rtmsg(SELLER,BUYER2)**rtcls(), rtcls()))
+
+#define PROTO2 (msg(BUYER2,BUYER3,int)::chse(BUYER3, msg(BUYER2,BUYER3,session(range(BUYER2,BUYER2),range(0,2),msg(BUYER2,SELLER,string)::msg(SELLER,BUYER2,string)::cls()))::cls(), cls()))
+#define RT2 (rtmsg(BUYER2,BUYER3)**rtchse(BUYER3, rtmsg(BUYER2,BUYER3)**rtcls(), rtcls()))
 
 extern fun inspect {a:t@ype} (a): string = "mac#libsession_inspect"
 extern fun debug (string): void = "mac#libsession_debug"
@@ -58,8 +61,9 @@ extern fun info (string): void = "mac#libsession_info"
 in 
 (*************************)
 
-extern fun a (): void = "mac#"
-implement a () =  
+
+extern fun a (int): void = "mac#"
+implement a (price) =  
 	init (name, set_add(empty_set(), SELLER), 
 		llam opt => 
 			case+ opt of 
@@ -67,18 +71,25 @@ implement a () =
 			| ~Just (session) => let 
 				val title = receive (session, BUYER1)
 				val _ = info title 
-				val _ = send (session, BUYER1, 50)
-				val _ = send (session, BUYER2, 50)
-			in 
-				close session 
+				val _ = send (session, BUYER1, price)
+				val _ = send (session, BUYER2, price)
+				val _ = skip_msg session 
+				val choice = offer (session, BUYER2)
+			in case+ choice of 
+				| ~ChooseFst () => let 
+						val address = receive (session, BUYER2)
+						val _ = info address 
+						val _ = send (session, BUYER2, "tomorrow")
+					in close session end 
+				| ~ChooseSnd () => close session 
 			end 
 	) where {
 		val name = make_name {range(0,2)} {PROTO} (set_range(0,2), RT, "test")
 	}
 
 
-extern fun b (): void = "mac#"
-implement b () = 
+extern fun b (int): void = "mac#"
+implement b (contrib) = 
 	init (name, set_add(empty_set(), BUYER1), 
 		llam opt => 
 			case+ opt of 
@@ -88,16 +99,22 @@ implement b () =
 				val price = receive (session, SELLER)
 				val _ = info (inspect price)
 				val _ = skip_msg (session)
-			in 
-				close session 
+				val _ = send (session, BUYER2, contrib)
+				val choice = offer (session, BUYER2)
+			in case+ choice of 
+			 	| ~ChooseFst () => let 
+			 			val _ = skip_msg session 
+			 			val _ = skip_msg session 
+			 		in close session end 
+			 	| ~ChooseSnd () => close session 
 			end 
 	) where {
 		val name = make_name {range(0,2)} {PROTO} (set_range(0,2), RT, "test")
 	}
 
 
-extern fun c (): void = "mac#"
-implement c () = 
+extern fun c (int): void = "mac#"
+implement c (budget) = 
 	init (name, set_add(empty_set(), BUYER2), 
 		llam opt => 
 			case+ opt of 
@@ -107,27 +124,104 @@ implement c () =
 				val _ = skip_msg session 
 				val price = receive (session, SELLER)
 				val _ = info (inspect price)
+				val contrib = receive (session, BUYER1)
 			in 
-				close session 
+				if price - contrib > budget
+				then let val _ = choose_snd (session) in close session end 
+				else let 
+					val _ = choose_fst (session)
+					val _ = send (session, SELLER, "my address")
+					val date = receive (session, SELLER)
+					val _ = info date
+				in close session end 
 			end 
 	) where {
 		val name = make_name {range(0,2)} {PROTO} (set_range(0,2), RT, "test")
 	}
 
+extern fun c2 (int): void = "mac#"
+implement c2 (budget) = 
+	init (name, set_add(empty_set(), BUYER2), 
+		llam opt => 
+			case+ opt of 
+			| ~Nothing () => info "nothing2"	
+			| ~Just (session) => let 
+				val _ = skip_msg session 
+				val _ = skip_msg session 
+				val price = receive (session, SELLER)
+				val _ = info (inspect price)
+				val contrib = receive (session, BUYER1)
+			in 
+				if price - contrib > budget
+				then let 
+						val name = make_name {range(2,3)} {PROTO2} (set_range(2,3), RT2, "test")
+					in 
+						init (name, set_range(BUYER2,BUYER2), 
+							llam opt => 
+								case+ opt of 
+								| ~Nothing () => let val _ = choose_snd session in close session end 
+								| ~Just (buyer3) => let 
+									val _ = send (buyer3, BUYER3, price - contrib)
+									val choice = offer (buyer3, BUYER3)
+								in 
+									case+ choice of 
+									| ~ChooseSnd () => let val _ = choose_snd session in (close session; close buyer3) end 
+									| ~ChooseFst () => let val _ = choose_fst session in (send (buyer3, BUYER3, session); close buyer3) end 
+								end 
+						)
+					end
+				else let 
+					val _ = choose_fst (session)
+					val _ = send (session, SELLER, "my address")
+					val date = receive (session, SELLER)
+					val _ = info date
+				in close session end 
+			end 
+	) where {
+		val name = make_name {range(0,2)} {PROTO} (set_range(0,2), RT, "test")
+	}
+
+extern fun c3 (): void = "mac#"
+implement c3 () = 
+	init (name, set_add(empty_set(), BUYER3), 
+		llam opt => 
+			case+ opt of 
+			| ~Nothing() => info "nothing"
+			| ~Just (session) => let 
+					val price = receive (session, BUYER2): int 
+					val _ = choose_fst session
+					val buyer2 = receive (session, BUYER2)
+					val _ = send (buyer2, SELLER, "my other address")
+					val date = receive (buyer2, SELLER)
+					val _ = info date
+					val _ = close buyer2
+				in 
+					close session
+				end
+	) where {
+		val name = make_name {range(2,3)} {PROTO2} (set_range(2,3), RT2, "test")
+	}
 
 extern fun d (): void = "mac#"
 implement d () = let 
 	val opt = create (set_range(1,2), set_range(0,0), rtinit(set_range(0,2)) ** RT, 
 		llam opt => 
 			case+ opt of 
-			| ~Nothing () => info "nothing"
+			| ~Nothing () => info "nothing"	
 			| ~Just (session) => let 
 				val title = receive (session, BUYER1)
 				val _ = info title 
 				val _ = send (session, BUYER1, 50)
 				val _ = send (session, BUYER2, 50)
-			in 
-				close session 
+				val _ = skip_msg session 
+				val choice = offer (session, BUYER2)
+			in case+ choice of 
+				| ~ChooseFst () => let 
+						val address = receive (session, BUYER2)
+						val _ = info address 
+						val _ = send (session, BUYER2, "tomorrow")
+					in close session end 
+				| ~ChooseSnd () => close session 
 			end 
 	)
 in 
@@ -139,54 +233,84 @@ in
 		val _ = info (inspect ($UN.castvwtp0{int} price))
 		val price = receive (session, SELLER)
 		val _ = info (inspect ($UN.castvwtp0{int} price))
+		val _ = skip_msg session
+		val _ = choose_fst session 
+		val _ = send (session, SELLER, "my address")
+		val date = receive (session, SELLER)
+		val _ = info date
 	in 
 		close session 
 	end 
 end 
 
 extern fun e (): void = "mac#"
-implement e () = let 
-	val opt0 = create (set_range(1,2), set_range(0,0), rtinit(set_range(0,2)) ** RT, 
-		llam opt => 
-			case+ opt of 
-			| ~Nothing () => info "nothing"
-			| ~Just (session) => let 
-				val title = receive (session, BUYER1)
-				val _ = info title 
-				val _ = send (session, BUYER1, 50)
-				val _ = send (session, BUYER2, 50)
-			in 
-				close session 
-			end 
-	)
+//implement e () = let 
+//	val opt0 = create (set_range(1,2), set_range(0,0), rtinit(set_range(0,2)) ** RT, 
+//		llam opt => 
+//			case+ opt of 
+//			| ~Nothing () => info "nothing"	
+//			| ~Just (session) => let 
+//				val title = receive (session, BUYER1)
+//				val _ = info title 
+//				val _ = send (session, BUYER1, 50)
+//				val _ = send (session, BUYER2, 50)
+//				val _ = skip_msg session 
+//				val choice = offer (session, BUYER2)
+//			in case+ choice of 
+//				| ~ChooseFst () => let 
+//						val address = receive (session, BUYER2)
+//						val _ = info address 
+//						val _ = send (session, BUYER2, "tomorrow")
+//					in close session end 
+//				| ~ChooseSnd () => close session 
+//			end 
+//	)
 
-	val opt1 = create (set_add(set_add(empty_set(), 0), 2), set_range(1,1), rtinit(set_range(0,2)) ** RT, 
-		llam opt => 
-			case+ opt of 
-			| ~Nothing () => info "nothing"
-			| ~Just (session) => let 
-				val _ = send (session, SELLER, "some title")
-				val price = receive (session, SELLER)
-				val _ = info (inspect ($UN.castvwtp0{int} price))
-				val _ = skip_msg session 
-			in 
-				close session 
-			end 
-	)
+//	val opt1 = create (set_add(set_add(empty_set(), 0), 2), set_range(1,1), rtinit(set_range(0,2)) ** RT, 
+//		llam opt => 
+//			case+ opt of 
+//			| ~Nothing () => info "nothing1"	
+//			| ~Just (session) => let 
+//				val _ = send (session, SELLER, "book title")
+//				val price = receive (session, SELLER)
+//				val price = $UN.castvwtp0{int} price
+//				val _ = info (inspect price)
+//				val _ = skip_msg (session)
+//				val _ = send (session, BUYER2, price)
+//				val choice = offer (session, BUYER2)
+//			in case+ choice of 
+//			 	| ~ChooseFst () => let 
+//			 			val _ = skip_msg session 
+//			 			val _ = skip_msg session 
+//			 		in close session end 
+//			 	| ~ChooseSnd () => close session 
+//			end 
+//	)
 
-in 
-	case+ (opt0, opt1) of 
-	| (~Nothing(), ~Nothing()) => info "nothing after link"
-	| (~Just(a), ~Just(b)) => let 
-			val session = link (a, b)
-			val _ = skip_msg session 
-			val _ = skip_msg session 
-			val price = receive (session, SELLER)
-			val _ = info (inspect ($UN.castvwtp0{int} price))
-		in close session end 
-	| (~Just (a), ~Nothing()) =>> let prval _ = $UN.cast2void a in end
-	| (~Nothing (), ~Just(b)) =>> let prval _ = $UN.cast2void b in end
-end
+//in 
+//	case+ (opt0, opt1) of 
+//	| (~Nothing(), ~Nothing()) => info "nothing after link"
+//	| (~Just(a), ~Just(b)) => let 
+//			val session = link (a, b)
+//			val _ = skip_msg session 
+//			val _ = skip_msg session 
+//			val price = receive (session, SELLER)
+//			val price = $UN.castvwtp0{int} price
+//			val _ = info (inspect price)
+//			val contrib = receive (session, BUYER1) :int
+//		in 
+//			if contrib < 20 
+//			then let val _ = choose_snd (session) in close session end 
+//			else let 
+//				val _ = choose_fst (session)
+//				val _ = send (session, SELLER, "my address")
+//				val date = receive (session, SELLER)
+//				val _ = info date
+//			in close session end 
+//		end 
+//	| (~Just (a), ~Nothing()) =>> let prval _ = $UN.cast2void a in end
+//	| (~Nothing (), ~Just(b)) =>> let prval _ = $UN.cast2void b in end
+//end
 
 
 (*************************)

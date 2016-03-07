@@ -195,19 +195,20 @@ defmodule Endpoint do
 		end
 	end 
 
-	# def choose(choice, %EndpointData{self: self, pid: pid, ref: ref}) do
-	# 	send pid, %Msg{label: :choose, from: self(), ref: ref, payload: choice}
+	def choose(%SessionData{self: self, parts: parts} = session, choice) do 
+		send Utils.getpid(session), %Msg{label: :choose, from: self(), ref: Utils.getref(session), payload: choice}
 
-	# 	choice
-	# end 
+		choice
+	end 
 
-	# def offer(from, %EndpointData{self: self, pid: pid, ref: ref}) do 
-	# 	send pid, %Msg{label: :offer, from: self(), ref: ref, payload: from}
+	def offer(%SessionData{self: self, parts: parts} = session, from) do 
+		send Utils.getpid(session), %Msg{label: :offer, from: self(), ref: Utils.getref(session), payload: from}
 
-	# 	receive do 
-	# 		%Msg{label: :offer, payload: choice} -> choice 
-	# 	end
-	# end 
+		pid = Utils.getpid(session)
+		receive do 
+			%Msg{label: :offer, payload: choice, from: ^pid} -> choice 
+		end
+	end 
 
 	def close(%SessionData{self: self, parts: parts} = session) do 
 		ref = Utils.getref(session)
@@ -295,28 +296,31 @@ defmodule Endpoint do
 				receive do 
 					%Msg{label: :send, ref: ^target, payload: {_, payload}} = msg -> 
 						send req.from, %Msg{msg | label: :recv, from: self(), payload: payload}
+						loop session 
 					%Msg{label: :link, ref: _, payload: newsession} -> 
 						send self(), req
 						loop %SessionData{newsession | self: self}
 				end 
-				loop session 
 
 		# 	%Msg{label: :broadcast, ref: ^ref, payload: payload} = req -> 
 		# 		for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, %Msg{req | label: :msg}
 		# 		loop session 
 
-		# 	%Msg{label: :offer, ref: ^ref, payload: from} = req -> 
+			%Msg{label: :offer, ref: ^ref, payload: from} = req -> 
 
-		# 		target = parties[from].ref 
-		# 		receive do 
-		# 			%Msg{label: :choose, ref: ^target, payload: choice} = msg -> 
-		# 				send req.from, %{msg | label: :offer}
-		# 		end 
-		# 		loop session 
+				target = Utils.getref(session, from)
+				receive do 
+					%Msg{label: :choose, ref: ^target, payload: choice} = msg -> 
+						send req.from, %{msg | label: :offer, from: self()}
+						loop session 
+					%Msg{label: :link, ref: _, payload: newsession} -> 
+						send self(), req 
+						loop %SessionData{newsession | self: self}
+				end 
 
-		# 	%Msg{label: :choose, ref: ^ref, payload: choice} = req -> 
-		# 		for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, req
-		# 		loop session 
+			%Msg{label: :choose, ref: ^ref, payload: choice} = req -> 
+				for %PartData{pid: pid, part: part} <- parts, Enum.member?(self, part) == false, do: send pid, req
+				loop session 
 		 		
 			%Msg{label: :link, ref: ^ref, payload: newsession} = req -> 
 				send self(), %Msg{label: :forward, ref: ref, payload: newsession}
