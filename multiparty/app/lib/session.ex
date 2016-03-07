@@ -343,7 +343,6 @@ defmodule Endpoint do
 
 				end
 
-
 				Logger.info "TERM"
 				:ok
 
@@ -357,8 +356,6 @@ defmodule Endpoint do
 						# end
 					# end 
 				# end)
-				# 
-				#  TODO need to move this to the beginning of session
 				NameServer.unregister(session.name, self)
 				Logger.info "CLOSED"
 				:ok

@@ -1,6 +1,7 @@
 #define ATS_EXTERN_PREFIX "libsession_"
 
 staload "intset.sats"
+//staload "list.sats"
 
 (* protocol *)
 sortdef protocol = type 
@@ -65,8 +66,8 @@ datatype rtsession (protocol) =
 | rtcls (cls ()) of ()
 | rtskip (skip ()) of ()
 | {s:set} rtinit (init s) of (set s)
-| {a:vt@ype} {x,y:nat|x != y} rtmsg (msg (x, y, a)) of (int x, int y)
-| {a:vt@ype} {x,y:set|cap(x,y)==empty_set()} rtmmsg (mmsg (x, y, a)) of (set x, set y) 
+| {a:vt@ype} {x,y:nat} rtmsg (msg (x, y, a)) of (int x, int y)
+| {a:vt@ype} {x,y:set} rtmmsg (mmsg (x, y, a)) of (set x, set y) 
 | {x:nat} {p,q:protocol} rtchse (chse (x, p, q)) of (int x, rtsession p, rtsession q)
 //| {x:nat} {p,q,r:protocol} rtchse3 (chse3 (x, p, q, r)) of (int x, rtsession p, rtsession q, rtsession r)
 //| {x:nat} {p,q,r,t:protocol} rtchse4 (chse4 (x, p, q, r, t)) of (int x, rtsession p, rtsession q, rtsession r, rtsession t)
@@ -83,7 +84,7 @@ absvtype session (self:set, s:set, gp:protocol)
 //	| Session (self, s, gp) of (pfsession gp, rtsessionref gp, set self, set s)
 
 (* name *)
-abst@ype name (set, protocol)
+abstype name (set, protocol)
 fun make_name {s:set} {gp:protocol} (set s, rtsession (gp), string): name (s, init(s)::gp)
 
 (* session init *)
@@ -95,7 +96,7 @@ fun init
 
 fun create 
 	{x,y,s:set|(cup(x,y)==s)*(cap(x,y)==empty_set())} {gp:protocol}
-	(set x, rtsession (init(s)::gp), maybe (session (y,s,gp)) -<lincloptr1> void) 
+	(set x, set y, rtsession (init(s)::gp), maybe (session (y,s,gp)) -<lincloptr1> void) 
 	: maybe (session (x,s,gp))
 
 
@@ -107,13 +108,26 @@ fun is_equal {p,q:protocol} (rtsession p, rtsession q): bool
 (* primitives *)
 fun send    
 	{self,s:set} {x,y:nat|mem(x,self) * ~mem(y,self)} {gp:protocol} {a:vt@ype} 
-	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), a)
+	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), int y, a)
 	: void 
 
 fun receive 
 	{self,s:set} {x,y:nat|mem(y,self) * ~mem(x,self)} {gp:protocol} {a:vt@ype} 
-	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp))
+	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), int x)
 	: a
+
+//fun msend
+//	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)!=empty_set())*(cap(y,self)==empty_set())} {gp:protocol} {a:vt@ype}
+//	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, gp), set x, set y, a)
+//	: void
+
+//fun msend 
+//	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)!=empty_set())*()}
+
+//fun mreceive 
+//	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)==empty_set())*(cap(y,self)!=empty_set())} {gp:protocol} {a:vt@ype}
+//	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, gp), set x, set y)
+//	: list a
 
 fun skip_msg
 	{self,s:set} {x,y:nat|(~mem(x,self) * ~mem(y,self)) + (x==y)} {gp:protocol} {a:vt@ype}
@@ -146,17 +160,17 @@ datavtype choice (protocol, p:protocol, q:protocol) =
 
 fun offer 	   
 	{self,s:set} {x:nat|(~mem(x,self))} {p,q:protocol} 
-	(!session (self, s, chse(x,p,q)) >> session (self, s, r))
+	(!session (self, s, chse(x,p,q)) >> session (self, s, r), int x)
 	: #[r:protocol] choice (r, p, q)
 
 fun choose_fst 
 	{self,s:set} {x:nat|mem(x,self)} {p,q:protocol} 
-	(!session (self, s, chse(x,p,q)) >> session (self, s, p))
+	(!session (self, s, chse(x,p,q)) >> session (self, s, p), int x)
 	: void 
 
 fun choose_snd 
 	{self,s:set} {x:nat|mem(x,self)} {p,q:protocol} 
-	(!session (self, s, chse(x,p,q)) >> session (self, s, q))
+	(!session (self, s, chse(x,p,q)) >> session (self, s, q), int x)
 	: void
 
 

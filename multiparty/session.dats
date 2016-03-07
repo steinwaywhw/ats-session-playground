@@ -1,12 +1,35 @@
+
+
+
 #define ATS_EXTERN_PREFIX "libsession_"
 #include "contrib/libatscc/libatscc2erl/staloadall.hats"
 
 staload UN = "prelude/SATS/unsafe.sats"
 staload "session.sats"
 staload "intset.sats"
-dynload "intset.dats"
+staload "libats/ML/SATS/basis.sats"
+
+
+#define ATS_DYNLOADFLAG 0
 
 //staload OP = "session.sats"
+%{^
+%%
+%%-module(libsession).
+%%
+-compile(nowarn_unused_vars).
+-compile(nowarn_unused_function).
+-compile(export_all).
+-compile(debug_info).
+%%
+-include("$PATSHOMERELOC/contrib/libatscc/libatscc2erl/libatscc2erl_all.hrl").
+-include("./session.hrl").
+%%
+%} // end of [%{]
+
+#include "intset.dats"
+
+
 
 infixr ::
 #define :: seqs 
@@ -14,66 +37,68 @@ infixr ::
 infixr ** 
 #define ** rtseqs
 
-assume name (s:set, p:protocol) = (set s, rtsession p, atom)
+assume name (s:set, p:protocol) = '(set s, rtsession p, atom)
 
-vtypedef rtsessionref (p:protocol) = ref_vt (rtsession p)
-datavtype _session (self:set, s:set, gp:protocol) = Session (self, s, gp) of (pfsession gp, rtsessionref gp, set self, set s)
+//vtypedef rtsessionref (p:protocol) = ref_vt (rtsession p)
+datavtype _session (self:set, s:set, gp:protocol) = Session (self, s, gp) of (pfsession gp, (*rtsessionref gp,*) set self, set s)
 assume session (self:set, s:set, gp:protocol) = _session (self, s, gp)
+
+
 
 (* TEST *)
 
-#define BUYER1 1
-#define BUYER2 2
-#define SELLER 0
+//#define BUYER1 1
+//#define BUYER2 2
+//#define SELLER 0
 
-#define PROTO_OK (msg(BUYER2,SELLER,string) :: msg(SELLER,BUYER2,string) :: cls())
-#define PROTO_CLS (cls())
+//#define PROTO_OK (msg(BUYER2,SELLER,string) :: msg(SELLER,BUYER2,string) :: cls())
+//#define PROTO_CLS (cls())
 
-#define PROTO (msg(BUYER1,SELLER,string) :: msg(SELLER,BUYER1,int) :: msg(SELLER,BUYER2,int) :: msg(BUYER1,BUYER2,int) :: chse(BUYER2, PROTO_OK, PROTO_CLS))
-#define PROTO_RT (rtmsg(BUYER1,SELLER) ** rtmsg(SELLER,BUYER1) ** rtmsg(SELLER,BUYER2) ** rtmsg(BUYER1,BUYER2) ** rtchse(BUYER2, rtmsg(BUYER2,SELLER) ** rtmsg(SELLER,BUYER2) ** rtcls(), rtcls()))
+//#define PROTO (msg(BUYER1,SELLER,string) :: msg(SELLER,BUYER1,int) :: msg(SELLER,BUYER2,int) :: msg(BUYER1,BUYER2,int) :: chse(BUYER2, PROTO_OK, PROTO_CLS))
+//#define PROTO_RT (rtmsg(BUYER1,SELLER) ** rtmsg(SELLER,BUYER1) ** rtmsg(SELLER,BUYER2) ** rtmsg(BUYER1,BUYER2) ** rtchse(BUYER2, rtmsg(BUYER2,SELLER) ** rtmsg(SELLER,BUYER2) ** rtcls(), rtcls()))
 
-local
+//local
 
-prval _ = $solver_assert (set_range_base)
-prval _ = $solver_assert (set_range_ind)
-prval _ = $solver_assert (set_range_lemma1)
-prval _ = $solver_assert (set_range_lemma2)
+//prval _ = $solver_assert (set_range_base)
+//prval _ = $solver_assert (set_range_ind)
+//prval _ = $solver_assert (set_range_lemma1)
+//prval _ = $solver_assert (set_range_lemma2)
 
-val name = make_name {range(0,2)} {PROTO} (set_range(0,2), PROTO_RT, "test")
+//val name = make_name {range(0,2)} {PROTO} (set_range(0,2), PROTO_RT, "test")
 
-val _ = init (name, set_add(empty_set(), 1), 
-			llam opt =>
-				case+ opt of 
-				| ~Nothing () => ()
-				| ~Just (session) => () where {
-					val _ = send (session, "a book title")
-					val price = receive (session)
-					val _ = skip_msg session
-					val _ = send (session, price / 2)
-					val choice = offer session
-					val _ = 
-						case+ choice of 
-						| ~ChooseFst () => (skip_msg session; skip_msg session; close session)
-						| ~ChooseSnd () => close session
-				})
+//val _ = init (name, set_add(empty_set(), 1), 
+//			llam opt =>
+//				case+ opt of 
+//				| ~Nothing () => ()
+//				| ~Just (session) => () where {
+//					val _ = send (session, 1, 0, "a book title")
+//					val price = receive (session, 0)
+//					val _ = skip_msg session
+//					val _ = send (session, 1, 2, price / 2)
+//					val choice = offer (session, 2)
+//					val _ = 
+//						case+ choice of 
+//						| ~ChooseFst () => (skip_msg session; skip_msg session; close session)
+//						| ~ChooseSnd () => close session
+//				})
 
-val _ = init (name, set_range(1,2), 
-			llam opt => 
-				case+ opt of 
-				| ~Nothing () => ()
-				| ~Just (session) => () where {
-					val _ = send (session, "a book title")
-					val price = receive session 
-					val _ = receive session 
-					val _ = skip_msg session
-					val _ = choose_fst session 
-					val _ = send (session, "my address")
-					val date = receive session 
-					val _ = close session 
-				})
+//val _ = init (name, set_range(1,2), 
+//			llam opt => 
+//				case+ opt of 
+//				| ~Nothing () => ()
+//				| ~Just (session) => () where {
+//					val _ = send (session, 1, 0, "a book title")
+//					val price = receive (session, 0)
+//					val _ = receive (session, 0)
+//					val _ = skip_msg session
+//					val _ = choose_fst (session, 2)
+//					val _ = send (session, 2, 0, "my address")
+//					val date = receive (session, 0)
+//					val _ = close session 
+//				})
 
-in 
-end 
+//in 
+//end 
 
 
 //implement inspect {self} {p} (session) = let 
@@ -104,41 +129,45 @@ prval _ = $solver_assert (set_range_lemma2)
 
 typedef erlval = ERLval
 
-extern fun is_pid (erlval): bool = "mac#is_pid"
+extern fun is_atom (erlval): bool = "mac#is_atom"
 extern fun spawn (() -<lincloptr1> void): pid = "mac#%"
 extern fun spawn_link (() -<lincloptr1> void): pid = "mac#%"
 extern fun make_ref (): erlval = "mac#%"
+extern fun debug(string): void = "mac#%"
+extern fun inspect {a:type} (a): string = "mac#%"
 
 fun set2erl {s:set} (s: set s): erlval = let 
-	datatype _set (set) = 
-	| Empty (empty_set ()) of ()
-	| {s:set} {n:int | ~mem(n, s)} Elem (set_add (s, n)) of (int n, set s)
+//	datatype _set (set) = 
+//	| Empty (empty_set ()) of ()
+//	| {s:set} {n:int | ~mem(n, s)} Elem (set_add (s, n)) of (int n, set s)
 
-	assume set (s:set) = _set s
+//	assume set (s:set) = _set s
 
-	fun set_reduce {s:set} (s: set s, base: erlval, f: (int, erlval) -<cloref1> erlval): erlval = 
+	(* the "f" should be ->, instead of -<cloref1> since it will be given an erlang func directly *)
+	fun set_reduce {s:set} (s: set s, base: erlval, f: (int, erlval) -> erlval): erlval = 
 		case+ s of 
 		| Empty () => base 
 		| Elem (n, s) => f (n, set_reduce (s, base, f))
 
-	extern fun _set2erl (set s, (set s, erlval, (int, erlval) -<cloref1> erlval) -<cloref1> erlval): erlval = "mac#%"
+	extern fun _set2erl (set s, (set s, erlval, (int, erlval) -> erlval) -<cloref1> erlval): erlval = "mac#%"
 in 
 	_set2erl (s, lam (s, base, f) => set_reduce (s, base, f))
 end
 
 
+
 (**)
 in 
 (**)
 
-implement make_name {s} {gp} (parts, rt, name) = (parts, rtinit (parts) ** rt, string2atom name)
+implement make_name {s} {gp} (parts, rt, name) = $tup(parts, rtinit (parts) ** rt, string2atom name)
 
 implement is_equal {p,q} (x, y) = 
 	case+ (x, y) of 
 	| (rtcls (), rtcls ()) => true 
 	| (rtskip (), rtskip ()) => true 
 	| (rtmsg (x1, y1), rtmsg (x2, y2)) => x1 = x2 andalso y1 = y2
-	| (rtmmsg (x1, y1), rtmmsg (x2, y2)) => x1 = x2 andalso y1 = y2
+	| (rtmmsg (x1, y1), rtmmsg (x2, y2)) => (x1 \set_eq x2) andalso (y1 \set_eq y2)
 	| (rtchse (x1, p1, q1), rtchse (x2, p2, q2)) => x1 = x2 andalso is_equal (p1, p2) andalso is_equal (q1, q2)
 	| (rtseqs (x1, y1), rtseqs (x2, y2)) => is_equal (x1, x2) andalso is_equal (y1, y2)
 	| (rtrpt (p), rtrpt (q)) => is_equal (p, q)
@@ -152,26 +181,25 @@ implement init {self,s} {gp} (name, self, loop) = let
 
 	extern fun _init (
 		name: atom, 
-		rt: rtsession (init(s)::gp), 
-		check: rtsession (init(s)::gp) -<cloref1> bool, 
 		self: erlval, 
-		parts: erlval)
+		parts: erlval,
+		rt: rtsession (init(s)::gp))
 		: erlval = "mac#%"
 
 
 	(* put the blocking init into a separate thread *)
-	val _ = spawn (
+	val _ = spawn_link (
 		llam () => let 
-			(* register, block wait, check, and return either pid or :no *)
-			val pid = _init (atom, rt, lam other => is_equal (other, rt), set2erl self, set2erl parts)
+			(* register, block wait, check, and return either session or :no *)
+			val pf = _init (atom, set2erl self, set2erl parts, rt)
 
-			val rtinit (_) ** rt = rt 
+//			val rtinit (_) ** rt = rt 
 
 			(* create maybe (session) *)
 			val session = 
-				(if is_pid pid 
- 				 then Just (Session ($UN.castvwtp0{pfsession gp}(pid), ref_vt rt, self, parts))
-				 else Nothing ()
+				(if is_atom pf 
+				 then Nothing ()
+ 				 else Just (Session ($UN.castvwtp0{pfsession gp}(pf), (*ref_vt rt,*) self, parts))
 				): maybe (session (self, s, gp))
 
 			val _ = loop session 
@@ -182,33 +210,31 @@ in
 	()
 end
 
-implement create {x,y,s} {gp} (self, rt, fother) = let 
+implement create {x,y,s} {gp} (self, other, rt, fother) = let 
 
 	val random = make_ref ()
 	val+ rtinit(parts) ** _ = rt
-	val other = set_difference (parts, self)
 
 	extern fun _init (
 		name: erlval, 
-		rt: rtsession (init(s)::gp), 
-		check: rtsession (init(s)::gp) -<cloref1> bool, 
 		self: erlval, 
-		parts: erlval)
+		parts: erlval,
+		rt: rtsession (init(s)::gp))
 		: erlval = "mac#%"
 
 	(* create the other *)
 	val _ = spawn (
 		llam () => let 
 			(* register, block wait, check, and return either pid or :no *)
-			val pid = _init (random, rt, lam other => is_equal (other, rt), set2erl other, set2erl parts)
+			val pf = _init (random, set2erl other, set2erl parts, rt)
 
-			val rtinit (_) ** rt = rt 
+//			val rtinit (_) ** rt = rt 
 
 			(* create maybe (session) *)
 			val session = 
-				(if is_pid pid 
- 				 then Just (Session ($UN.castvwtp0{pfsession gp}(pid), ref_vt rt, other, parts))
-				 else Nothing ()
+				(if is_atom pf 
+				 then Nothing ()
+ 				 else Just (Session ($UN.castvwtp0{pfsession gp}(pf), (*ref_vt rt,*) other, parts))
 				): maybe (session (y, s, gp))
 
 			val _ = fother session 
@@ -217,13 +243,13 @@ implement create {x,y,s} {gp} (self, rt, fother) = let
 		end)
 
 	(* create my self *)
-	val pid = _init (random, rt, lam other => is_equal (other, rt), set2erl self, set2erl parts)
-	val rtinit (_) ** rt = rt 
+	val pf = _init (random, set2erl self, set2erl parts, rt)
+//	val rtinit (_) ** rt = rt 
 	(* create maybe (session) *)
 	val session = 
-		(if is_pid pid 
-			 then Just (Session ($UN.castvwtp0{pfsession gp} pid, ref_vt rt, self, parts))
-		 else Nothing ()
+		(if is_atom pf 
+		 then Nothing ()
+		 else Just (Session ($UN.castvwtp0{pfsession gp} pf, (*ref_vt rt,*) self, parts))
 		): maybe (session (x, s, gp))
 
 in 
@@ -233,49 +259,136 @@ end
 
 
 
-//implement send {self,s} {x,y} {gp} {a} (session, payload) = let 
+implement send {self,s} {x,y} {gp} {a} (session, to, payload) = let 
 
+	val+ @Session(pf, (*rtref,*) self, s) = session
+//	val+ rtmsg(_, _) ** rest = rtref[]
 
-//	val+ @Session(pf, rtref, self, s) = (session) : session (self, s, msg(x,y,a)::gp)
-//	val+ rtmsg(from, to) ** rest = (rtref[]) : rtsession (msg(x,y,a)::gp)
-
-//	extern fun _send (!pfsession (msg(x, y, a) :: gp) >> pfsession gp, int x, int y, a): void = "mac#%"
-//	val _ = _send (pf, from, to, payload)
+	extern fun _send (!pfsession (msg(x, y, a) :: gp) >> pfsession gp, int y, a): void = "mac#%"
+	val _ = _send (pf, to, payload)
 //	val _ = rtref[] := rest 
-//	prval _ = $UN.cast2void payload
-//	prval _ = fold@session
-//in 
-//	()
-//end
+	prval _ = fold@session
+in 
+	()
+end
 
-implement receive {self,s} {x,y} {gp} {a} (ss) = let 
+implement receive {self,s} {x,y} {gp} {a} (session, from) = let 
 
-	extern fun _recv (!pfsession (msg(x,y,a)::gp) >> pfsession gp, int x, int y): a = "mac#%"
+	extern fun _recv (!pfsession (msg(x,y,a)::gp) >> pfsession gp, int x): a = "mac#%"
 
-	val+ @Session(pf, rtref, self, s) = ss : session (self, s, msg(x,y,a)::gp)
-	val rtmsg(from, to) ** rest = rtref[]
+	val+ @Session(pf, (*rtref,*) self, s) = session
+//	val rtmsg(from, to) ** rest = rtref[]
 
-	val res = _recv (pf, from, to)
-	val _ = rtref[] := rest 
-	prval _ = fold@ss 
+	val res = _recv (pf, from)
+//	val _ = rtref[] := rest 
+	prval _ = fold@session
 
 in 
 	res 
 end 
 
-//	val ret = _recv (from, session)
-//	prval _ = fold@s 
+//implement msend {self,s} {x,y} {gp} {a} (session, from, to, payload) = let 
+	
+//	extern fun _msend (!pfsession (mmsg(x,y,a)::gp) >> pfsession gp, erlval, erlval, a): void = "mac#%"
+
+//	val+ @Session(pf, self, s) = session 
+//	val _ = _msend (pf, set2erl from, set2erl to, payload)
+//	prval _ = fold@session 
 //in 
-//	ret 
-//end 
+//	() 
+//end
 
-//implement broadcast {self} {p} {a} (s, payload) = let 
-
-
-
-
+//implement mreceive {self,s} {x,y} {gp} {a} (session, from, to) = let 
+	
+//	extern fun _mreceive (!pfsession (mmsg(x,y,a)::gp) >> pfsession gp, erlval, erlval): 
 
 
+
+implement skip_msg {self,s} {x,y} {gp} {a} (session) = let 
+	val+ @Session(pf, self, s) = session 
+	prval _ = $UN.castview2void pf 
+	prval _ = fold@session 
+in 
+	() 
+end
+
+//
+implement skip_mmsg {self,s} {x,y} {gp} {a} (session) = let 
+	val+ @Session(pf, self, s) = session 
+	prval _ = $UN.castview2void pf 
+	prval _ = fold@session 
+in 
+	() 
+end 
+
+implement proj_mmsg {self,s} {x,y} {gp} {a} (session) = let 
+	val+ @Session(pf, self, s) = session 
+	prval _ = $UN.castview2void pf 
+	prval _ = fold@session 
+in 
+	() 
+end  
+
+implement close {self,s} (session) = let 
+	extern fun _close (pfsession (cls())): void = "mac#%"
+	val+ ~Session(pf, self, s) = session 
+
+	val _ = _close (pf)
+in 
+	() 
+end 
+
+implement link {x,y,s} {gp} (sessionx, sessiony) = let 
+	extern fun _link (pfsession gp, pfsession gp): pfsession gp = "mac#%"
+
+	val+ ~Session(pfx, x, s) = sessionx
+	val+ ~Session(pfy, y, s) = sessiony
+
+	val self = s \set_difference ((s \set_difference x) \set_union (s \set_difference y))
+
+	val pf = _link (pfx, pfy)
+
+in 
+	Session (pf, self, s)
+end 
+
+implement offer {self,s} {x} {p,q} (session, from) = let 
+	extern fun _offer (!pfsession (chse(x,p,q)), int x): int = "mac#%"
+
+	val+ @Session (pf, self, s) = session 
+	val label = _offer (pf, from)
+
+in 
+	if label = 0 
+	then let 
+		prval _ = $UN.castview2void pf 
+		prval _ = fold@session 
+		in ChooseFst {p,q} () end
+	else let 
+		prval _ = $UN.castview2void pf 
+		prval _ = fold@session
+		in ChooseSnd {p,q} () end 
+end 
+
+implement choose_fst {self,s} {x} {p,q} (session, x) = let 
+	extern fun _choose (!pfsession (chse(x,p,q)) >> pfsession p, int 0): void = "mac#%"
+
+	val+ @Session (pf, self, s) = session 
+	val _ = _choose (pf, 0)
+	prval _ = fold@session 
+in 
+	() 
+end 
+
+implement choose_snd {self,s} {x} {p,q} (session, x) = let 
+	extern fun _choose (!pfsession (chse(x,p,q)) >> pfsession q, int 1): void = "mac#%"
+
+	val+ @Session (pf, self, s) = session 
+	val _ = _choose (pf, 1)
+	prval _ = fold@session 
+in 
+	() 
+end 
 
 (**)
 end

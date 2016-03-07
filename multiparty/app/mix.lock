@@ -1,0 +1,4 @@
+%{"edown": {:git, "https://github.com/uwiger/edown.git", "d864427506cd93a00712b7c3b9a89d793e7e1600", []},
+  "gen_leader": {:git, "https://github.com/garret-smith/gen_leader_revival.git", "d9689e6e80cd8a437bc207d37cb53290ecd64b35", []},
+  "gproc": {:git, "https://github.com/uwiger/gproc", "85d8dddf2b04690cee051994b40bfa45925f9e36", []},
+  "mix_erlang_tasks": {:git, "https://github.com/alco/mix-erlang-tasks", "2db99d1bb70f11dab0ab3805795db0417179ab73", []}}

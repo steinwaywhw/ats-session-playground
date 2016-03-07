@@ -7,6 +7,8 @@ ATS2ERL=atscc2erl
 ERLC=erlc +debug_info
 ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc 
 
+DEPLOY_TARGET=./app/lib
+DEPLOY_TARGET_BEAM=./app/_build/dev/lib/test/ebin/
 
 # session.erl: session.&>
 	# $(PATSCC) session.dats 
@@ -14,14 +16,33 @@ ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc
 	# erlc session.erl 
 	# 
 
-lib: session.ex
-	$(ELIXIRC) session.ex
+# lib: session.ex
+	# $(ELIXIRC) session.ex
 
+deploy: deploy_test deploy_session
 
-
-test: lib test.dats 
+deploy_test: test.dats deploy_session
 	$(PATSOPT) -tc --constraint-export -d test.dats | $(PATSOLVE) -i
-	$(PATSCC) test.dats
+	$(PATSCC) --constraint-ignore test.dats
+	$(ATS2ERL) -i test_dats.c > test.erl 
+	$(ERLC) test.erl 
+	mkdir -p $(DEPLOY_TARGET_BEAM)
+	mv test.beam $(DEPLOY_TARGET_BEAM)
+	# mv test.erl $(DEPLOY_TARGET)
+	# rm -rf test_dats.c test.erl session.erl
+
+deploy_session: session.dats session.hrl session.ex 
+	$(PATSOPT) -tc --constraint-export -d session.dats | $(PATSOLVE) -i
+	$(PATSCC) --constraint-ignore session.dats 
+	$(ATS2ERL) -i session_dats.c > session.erl
+	# mv session.erl $(DEPLOY_TARGET)
+	cp session.ex $(DEPLOY_TARGET)
+	# rm -rf session_dats.c 
+
+
+# test: lib test.dats 
+	# $(PATSOPT) -tc --constraint-export -d test.dats | $(PATSOLVE) -i
+	# $(PATSCC) test.dats
 	# $(ATS2ERL) -i test_dats.c > test.erl 
 	# $(ERLC) test.erl 
 	# rm test.erl
@@ -52,3 +73,4 @@ testerl: test_datatype.dats
 clean:
 	rm -f *.beam 
 	rm -f *ats.c 
+	rm -f *.erl
