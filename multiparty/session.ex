@@ -166,7 +166,7 @@ defmodule Endpoint do
 
 				Logger.debug "session = #{inspect session, pretty: true}"
 
-				# NameServer.unregister(name, self)
+				NameServer.unregister(name, self)
 
 				loop session
 
@@ -281,6 +281,8 @@ defmodule Endpoint do
 		# self = parties[self]
 		ref = Utils.getref(session)
 
+		# Logger.info "#{inspect Process.info(self(), :messages), pretty: true}"
+
 		# # selfref = self.ref
 		receive do 
 			%Msg{label: :send, ref: ^ref, payload: {to, payload}} = req -> 
@@ -322,7 +324,7 @@ defmodule Endpoint do
 
 			%Msg{label: :forward, ref: ^ref, payload: newsession} = forward -> 
 				{_, len} = Process.info(self(), :message_queue_len)
-				Logger.info "In #{inspect self()} Forwarding #{inspect Process.info(self(), :messages), pretty: true}"
+				# Logger.info "In #{inspect self()} Forwarding #{inspect Process.info(self(), :messages), pretty: true}"
 
 				if len > 0 do 
 					receive do 
@@ -335,17 +337,11 @@ defmodule Endpoint do
 							for to <- self, do: send Utils.getpid(newsession, to), req
 							send self(), forward
 							loop session 
-
-						%Msg{label: :forward} = req -> 
-							loop session 
-
 					end
-
+				else 
+					Logger.info "TERM"
+					:ok
 				end
-
-
-				Logger.info "TERM"
-				:ok
 
 
 			%Msg{label: :close, ref: ^ref} = req -> 
@@ -359,7 +355,6 @@ defmodule Endpoint do
 				# end)
 				# 
 				#  TODO need to move this to the beginning of session
-				NameServer.unregister(session.name, self)
 				Logger.info "CLOSED"
 				:ok
 		end

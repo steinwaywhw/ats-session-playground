@@ -19,6 +19,16 @@ defmodule App do
 		# :rpc.call(:c@localhost, :test, :c, [])
 	end 
 
+
+	def test() do 
+		require Logger 
+
+		receive do 
+			:a -> Logger.info :a 
+			:b -> Logger.info :b 
+		end 
+	end 
+
 	def main(part) do 
 		
 		NameServer.register(:hello, part, self())

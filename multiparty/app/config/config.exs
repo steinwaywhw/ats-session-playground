@@ -18,7 +18,13 @@ use Mix.Config
 #
 # Or configure a 3rd-party app:
 #
-#     config :logger, level: :info
+    # config :logger, level: :info
+
+    config :logger, :console,
+      level: :debug,
+      # format: "$date $time [$level]$levelpad $metadata$message\n",
+      format: "$time [$level]$levelpad $metadata $message\n",
+      metadata: [:user, :exception, :path, :state, :pid]
 #
 
 # It is also possible to import configuration files, relative to this
