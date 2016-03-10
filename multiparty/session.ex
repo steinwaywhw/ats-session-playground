@@ -202,12 +202,16 @@ defmodule Endpoint do
 	end 
 
 	def offer(%SessionData{self: self, parts: parts} = session, from) do 
-		send Utils.getpid(session), %Msg{label: :offer, from: self(), ref: Utils.getref(session), payload: from}
+		choices = Enum.map self, fn part -> 
+			send Utils.getpid(session), %Msg{label: :offer, from: self(), ref: Utils.getref(session), payload: from} 
 
-		pid = Utils.getpid(session)
-		receive do 
-			%Msg{label: :offer, payload: choice, from: ^pid} -> choice 
+			pid = Utils.getpid(session)
+			receive do 
+				%Msg{label: :offer, payload: choice, from: ^pid} -> choice 
+			end
 		end
+
+		hd choices
 	end 
 
 	def close(%SessionData{self: self, parts: parts} = session) do 

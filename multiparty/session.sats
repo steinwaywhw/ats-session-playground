@@ -1,7 +1,6 @@
 #define ATS_EXTERN_PREFIX "libsession_"
 
 staload "intset.sats"
-//staload "list.sats"
 
 (* protocol *)
 sortdef protocol = type 
@@ -10,12 +9,12 @@ abstype cls ()
 abstype skip ()
 abstype msg (int, int, vt@ype)
 abstype mmsg (set, set, vt@ype)
-abstype chse (int, type, type)
+abstype chse (int, protocol, protocol)
 //abstype chse3 (int, type, type, type)
 //abstype chse4 (int, type, type, type, type)
-abstype seqs (type, type)
+abstype seqs (protocol, protocol)
 abstype init (set)
-abstype rpt (int, type)
+abstype rpt (int, protocol)
 
 infixr :: 
 #define :: seqs
@@ -27,6 +26,10 @@ infixr ::
 datavtype maybe (a:vtype) =
 | Just (a) of a 
 | Nothing (a) 
+
+datavtype list (a:vt@ype) = 
+| Cons (a) of (a, list a)
+| Nil (a) of ()
 
 (*
 (* projection *)
@@ -116,11 +119,24 @@ fun receive
 	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), int x)
 	: a
 
+
+abstype foreach (int, bool, protocol)
+
+fun proj_foreach 
+	{self,s:set} {i:int} {p:protocol} {b:bool|b == true}
+	(!session (self, s, foreach (i, b, p)) >> session (self, s, p :: foreach (i+1, b, p)), int i)
+	: void 
+
 //fun msend
-//	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)!=empty_set())*(cap(y,self)==empty_set())} {gp:protocol} {a:vt@ype}
-//	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, gp), set x, set y, a)
+//	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*sub(self,x)*(cap(y,self)==empty_set())} {n:nat|mem(n,x)} {gp:protocol} {a:vt@ype}
+//	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, mmsg(del(x,n),y,a)::gp), int n, set y, a)
 //	: void
 
+//fun mreceive
+//	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)==empty_set())*sub(self,y)} {n:nat|mem(n,y)} {gp:protocol} {a:vt@ype}
+//	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, mmsg(x,del(y,n),a)::gp), set x, int n)
+//	: list a
+ 
 //fun msend 
 //	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)!=empty_set())*()}
 

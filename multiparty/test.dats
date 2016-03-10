@@ -70,7 +70,10 @@ implement a (price) =
 			| ~Nothing () => info "nothing"	
 			| ~Just (session) => let 
 				val title = receive (session, BUYER1)
+				val _ = info "seller got request for:"
 				val _ = info title 
+				val _ = info "replying price"
+				val _ = info (inspect price)
 				val _ = send (session, BUYER1, price)
 				val _ = send (session, BUYER2, price)
 				val _ = skip_msg session 
@@ -78,8 +81,10 @@ implement a (price) =
 			in case+ choice of 
 				| ~ChooseFst () => let 
 						val address = receive (session, BUYER2)
+						val _ = info "seller got address"
 						val _ = info address 
 						val _ = send (session, BUYER2, "tomorrow")
+						val _ = info "seller sending date"
 					in close session end 
 				| ~ChooseSnd () => close session 
 			end 
@@ -95,10 +100,12 @@ implement b (contrib) =
 			case+ opt of 
 			| ~Nothing () => info "nothing1"	
 			| ~Just (session) => let 
+				val _ = info "buyer 1 sending title"
 				val _ = send (session, SELLER, "book title")
 				val price = receive (session, SELLER)
 				val _ = info (inspect price)
 				val _ = skip_msg (session)
+				val _ = info "buyer 1 sending to buyer2 what he can contribute"
 				val _ = send (session, BUYER2, contrib)
 				val choice = offer (session, BUYER2)
 			in case+ choice of 
@@ -122,12 +129,17 @@ implement c (budget) =
 			| ~Just (session) => let 
 				val _ = skip_msg session 
 				val _ = skip_msg session 
+				val _ = info "buyer 2 received the book price"
 				val price = receive (session, SELLER)
 				val _ = info (inspect price)
+				val _ = info "buyer 2 received what buyer 1 can contribute"
 				val contrib = receive (session, BUYER1)
+				val _ = info (inspect contrib)
 			in 
 				if price - contrib > budget
-				then let val _ = choose_snd (session) in close session end 
+				then let 
+					val _ = info "buyer 2 can't afford"
+					val _ = choose_snd (session) in close session end 
 				else let 
 					val _ = choose_fst (session)
 					val _ = send (session, SELLER, "my address")
@@ -149,12 +161,16 @@ implement c2 (budget) =
 				val _ = skip_msg session 
 				val _ = skip_msg session 
 				val price = receive (session, SELLER)
+				val _ = info "buyer 2 received price"
 				val _ = info (inspect price)
+				val _ = info "buyer 2 received what buyer 1 can contribute"
 				val contrib = receive (session, BUYER1)
+				val _ = info (inspect contrib)
 			in 
 				if price - contrib > budget
 				then let 
 						val name = make_name {range(2,3)} {PROTO2} (set_range(2,3), RT2, "test")
+						val _ = info "buyer 2 can't afford, asking buyer 3"
 					in 
 						init (name, set_range(BUYER2,BUYER2), 
 							llam opt => 
@@ -166,7 +182,10 @@ implement c2 (budget) =
 								in 
 									case+ choice of 
 									| ~ChooseSnd () => let val _ = choose_snd session in (close session; close buyer3) end 
-									| ~ChooseFst () => let val _ = choose_fst session in (send (buyer3, BUYER3, session); close buyer3) end 
+									| ~ChooseFst () => let 
+											val _ = choose_fst session 
+											val _ = info "buyer 3 agrees, sending over the endpoint"
+										in (send (buyer3, BUYER3, session); close buyer3) end 
 								end 
 						)
 					end
@@ -188,10 +207,15 @@ implement c3 () =
 			case+ opt of 
 			| ~Nothing() => info "nothing"
 			| ~Just (session) => let 
+					val _ = info "buyer 3 received what he needs to pay"
 					val price = receive (session, BUYER2): int 
+					val _ = info (inspect price)
 					val _ = choose_fst session
+					val _ = info "buyer 3 agreed to pay"
 					val buyer2 = receive (session, BUYER2)
+					val _ = info "buyer 3 send address to seller as buyer 2"
 					val _ = send (buyer2, SELLER, "my other address")
+					val _ = info "buyer 3 received date as buyer 2"
 					val date = receive (buyer2, SELLER)
 					val _ = info date
 					val _ = close buyer2
@@ -244,73 +268,73 @@ in
 end 
 
 extern fun e (): void = "mac#"
-//implement e () = let 
-//	val opt0 = create (set_range(1,2), set_range(0,0), rtinit(set_range(0,2)) ** RT, 
-//		llam opt => 
-//			case+ opt of 
-//			| ~Nothing () => info "nothing"	
-//			| ~Just (session) => let 
-//				val title = receive (session, BUYER1)
-//				val _ = info title 
-//				val _ = send (session, BUYER1, 50)
-//				val _ = send (session, BUYER2, 50)
-//				val _ = skip_msg session 
-//				val choice = offer (session, BUYER2)
-//			in case+ choice of 
-//				| ~ChooseFst () => let 
-//						val address = receive (session, BUYER2)
-//						val _ = info address 
-//						val _ = send (session, BUYER2, "tomorrow")
-//					in close session end 
-//				| ~ChooseSnd () => close session 
-//			end 
-//	)
+implement e () = let 
+	val opt0 = create (set_range(1,2), set_range(0,0), rtinit(set_range(0,2)) ** RT, 
+		llam opt => 
+			case+ opt of 
+			| ~Nothing () => info "nothing"	
+			| ~Just (session) => let 
+				val title = receive (session, BUYER1)
+				val _ = info title 
+				val _ = send (session, BUYER1, 50)
+				val _ = send (session, BUYER2, 50)
+				val _ = skip_msg session 
+				val choice = offer (session, BUYER2)
+			in case+ choice of 
+				| ~ChooseFst () => let 
+						val address = receive (session, BUYER2)
+						val _ = info address 
+						val _ = send (session, BUYER2, "tomorrow")
+					in close session end 
+				| ~ChooseSnd () => close session 
+			end 
+	)
 
-//	val opt1 = create (set_add(set_add(empty_set(), 0), 2), set_range(1,1), rtinit(set_range(0,2)) ** RT, 
-//		llam opt => 
-//			case+ opt of 
-//			| ~Nothing () => info "nothing1"	
-//			| ~Just (session) => let 
-//				val _ = send (session, SELLER, "book title")
-//				val price = receive (session, SELLER)
-//				val price = $UN.castvwtp0{int} price
-//				val _ = info (inspect price)
-//				val _ = skip_msg (session)
-//				val _ = send (session, BUYER2, price)
-//				val choice = offer (session, BUYER2)
-//			in case+ choice of 
-//			 	| ~ChooseFst () => let 
-//			 			val _ = skip_msg session 
-//			 			val _ = skip_msg session 
-//			 		in close session end 
-//			 	| ~ChooseSnd () => close session 
-//			end 
-//	)
+	val opt1 = create (set_add(set_add(empty_set(), 0), 2), set_range(1,1), rtinit(set_range(0,2)) ** RT, 
+		llam opt => 
+			case+ opt of 
+			| ~Nothing () => info "nothing1"	
+			| ~Just (session) => let 
+				val _ = send (session, SELLER, "book title")
+				val price = receive (session, SELLER)
+				val price = $UN.castvwtp0{int} price
+				val _ = info (inspect price)
+				val _ = skip_msg (session)
+				val _ = send (session, BUYER2, price)
+				val choice = offer (session, BUYER2)
+			in case+ choice of 
+			 	| ~ChooseFst () => let 
+			 			val _ = skip_msg session 
+			 			val _ = skip_msg session 
+			 		in close session end 
+			 	| ~ChooseSnd () => close session 
+			end 
+	)
 
-//in 
-//	case+ (opt0, opt1) of 
-//	| (~Nothing(), ~Nothing()) => info "nothing after link"
-//	| (~Just(a), ~Just(b)) => let 
-//			val session = link (a, b)
-//			val _ = skip_msg session 
-//			val _ = skip_msg session 
-//			val price = receive (session, SELLER)
-//			val price = $UN.castvwtp0{int} price
-//			val _ = info (inspect price)
-//			val contrib = receive (session, BUYER1) :int
-//		in 
-//			if contrib < 20 
-//			then let val _ = choose_snd (session) in close session end 
-//			else let 
-//				val _ = choose_fst (session)
-//				val _ = send (session, SELLER, "my address")
-//				val date = receive (session, SELLER)
-//				val _ = info date
-//			in close session end 
-//		end 
-//	| (~Just (a), ~Nothing()) =>> let prval _ = $UN.cast2void a in end
-//	| (~Nothing (), ~Just(b)) =>> let prval _ = $UN.cast2void b in end
-//end
+in 
+	case+ (opt0, opt1) of 
+	| (~Nothing(), ~Nothing()) => info "nothing after link"
+	| (~Just(a), ~Just(b)) => let 
+			val session = link (a, b)
+			val _ = skip_msg session 
+			val _ = skip_msg session 
+			val price = receive (session, SELLER)
+			val price = $UN.castvwtp0{int} price
+			val _ = info (inspect price)
+			val contrib = receive (session, BUYER1) :int
+		in 
+			if contrib < 20 
+			then let val _ = choose_snd (session) in close session end 
+			else let 
+				val _ = choose_fst (session)
+				val _ = send (session, SELLER, "my address")
+				val date = receive (session, SELLER)
+				val _ = info date
+			in close session end 
+		end 
+	| (~Just (a), ~Nothing()) =>> let prval _ = $UN.cast2void a in end
+	| (~Nothing (), ~Just(b)) =>> let prval _ = $UN.cast2void b in end
+end
 
 
 (*************************)
