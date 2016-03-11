@@ -54,66 +54,14 @@ assume session (self:set, s:set, gp:protocol) = _session (self, s, gp)
 //#define PROTO_OK (msg(BUYER2,SELLER,string) :: msg(SELLER,BUYER2,string) :: cls())
 //#define PROTO_CLS (cls())
 
-//local 
+local 
 
-//#define FOREACH (foreach(i,mem(i,s)*mem(i+1,s),msg(i,i+1,int)))
+prval _ = $solver_assert (set_range_base)
+prval _ = $solver_assert (set_range_ind)
+prval _ = $solver_assert (set_range_lemma1)
+prval _ = $solver_assert (set_range_lemma2)
 
-//datatype foreach (int, protocol)
-//| {p:protocol} Start (0, p) of ()
-//| {n:nat|n>0} Step (n, msg(n,n+1,int)::foreach(n+1,p)) of ()
-//| End ()
-
-
-//foreach (i) >> msg (i,i+1) :: foreach (i+1)
-//foreach (i,f) >> msg(i, f(i)) :: foreach (i+1,f)
-
-//abstype foreach (int, int -> int)
-
-//stacst addone: int -> int 
-
-//datatype foreach (int, protocol) = 
-//| Start (0, msg(0,1)) of (foreach (1,p)) 
-//| {n:nat|n > 0 && n < 3} Step (n, msg(n,n+1,int)) of (foreach (n+1,msg(n+1,n+2,int)))
-//| End (3, msg(3,4,int)) of ()
-
-//Start(Step(Step(End())))
-//extern fun test_foreach (): [f:int->int|f=session (range(1,2), range(0,3), foreach(3, ::cls())
-
-//absvtype foreach (int)
-//macdef f1 (i) = ,i 
-//macdef f2 (i) = ,i + 1
-//macdef bind(i, f1, f2, type) = msg(,f1(,i), ,f2(,i), ,type)
-
-
-//datatype foreach () = 
-//| Step () of ((int i, int j, !session p >> session (msg(i,j,a) :: p) -> void)
-
-//extern fun unroll (!foreach i >> msg(i,i+1,int) :: foreach (i+1)): void 
-//extern fun test (): foreach 0
-//extern fun send2    
-//	{self,s:set} {x,y:nat|mem(x,self) * ~mem(y,self)} {gp:protocol} {a:vt@ype} 
-//	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), int x, int y, a)
-//	: void 
-
-//	prval _ = $solver_assert (set_range_base)
-//	prval _ = $solver_assert (set_range_ind)
-//	prval _ = $solver_assert (set_range_lemma1)
-//	prval _ = $solver_assert (set_range_lemma2)
-
-//typedef foreach (,j) = {i,j:nat} msg(i,j,int)
-
-//datatype R (G0: protocol, G: (int, protocol) -> protocol, int) =
-//| RBase (G0, G, 0) of ()
-//| {i:nat} RRecur (G0, G, i+1) of (G)
-
-
-//extern fun eval {G0,G:protocol} {i:nat} (R(G0,G,i)): protocol = 
-//	case+ R of 
-//	| RBase {G0, G, 0} (G0) => G0 
-//	| RRecur {G0, G, 0} (G, i) => G(i) :: eval(R(G0, G, i-1))
-
-
-//abstype R (protocol, (int -> protocol), int)
+//abstype R (protocol, int -> protocol, int)
 
 //extern fun eval_base 
 //	{self,s:set} {G0,p:protocol} {G:int->protocol} 
@@ -122,11 +70,12 @@ assume session (self:set, s:set, gp:protocol) = _session (self, s, gp)
 
 //extern fun eval_recur 
 //	{self,s:set} {G0,p:protocol} {G:int->protocol} {i:nat|i > 0} 
-//	(!session (self, s, R(G0, G, i) :: p) >> session (self, s, G(i) :: R(G0, lam i => G(i), i-1) :: p))
+//	(!session (self, s, R(G0, G, i) :: p) >> session (self, s, G(i) :: R(G0, G, i-1) :: p))
 //	: void
 
 //macdef G(i) = msg(i-1,i,int)
 
+//#define TP (R(skip(), (lam i => msg(i-1,i,int)), 3) :: cls())
 
 //macdef rec foreach(G0, G, i) = (
 //	if i = 0 
@@ -145,22 +94,42 @@ assume session (self:set, s:set, gp:protocol) = _session (self, s, gp)
 //stadef f (i: int): protocol = msg (i-1, i, int)
 //stadef ff = f 
 
-//extern fun test (): session(range(1,1), range(0,3), R(msg(0,1), G, 3) :: cls ())
+extern fun test (): 
+	session(range(1,1), range(0,3), 
+		forasc(0,2,lam (i:int) => msg(i,i+1,int)) :: cls()
+	)
 
 
 
-//in 
+in 
 
-//val x = test ()
+val x = test ()
 //val x = unroll x
-//val 
+val _ = foreach_asc_unroll x 
+val _ = foreach_asc_unroll x 
+val _ = foreach_asc_done x 
+
+val someval = receive (x, 0)
+val _ = send (x, 2, 100)
+val _ = skip_msg x
+//val _ = flatten 
+//prval _ = showvtype x
+//val _ = eval_recur x 
+//val _ = send (x, 3, 200) 
+
+//val _ = eval_recur x 
+//prval _ = showvtype x
+//val _ = eval_base x 
+//val _ = skip x 
+val _ = close x
+
 
 //val _ = send2 (x, 1, 2, 200)
 //val _ = send2 (x, 2, 3, 200)
 
 //prval _ = $UN.cast2void x
 
-//end
+end
 
 
 

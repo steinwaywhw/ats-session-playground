@@ -51,6 +51,10 @@ tc: session.sats session.dats
 	$(PATSOPT) -tc --constraint-export -s session.sats | $(PATSOLVE) -i
 	$(PATSOPT) -tc --constraint-export -d session.dats | $(PATSOLVE) -i
 
+
+showtype: session.dats 
+	$(PATSCC) --constraint-ignore session.dats 
+	rm session_dats.c
 # server: lib server.dats
 # 	$(PATSCC) server.dats
 # 	atscc2erl -i server_dats.c > server.erl 

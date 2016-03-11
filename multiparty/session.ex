@@ -17,7 +17,7 @@ defmodule Utils do
 
 	def set2erl(set, f) do 
 		ret = f.(set, [], fn x, s -> [x] ++ s end)
-		Logger.debug "#{inspect ret}"
+		# Logger.debug "#{inspect ret}"
 
 		ret
 	end 
@@ -94,7 +94,7 @@ defmodule NameServer do
 			else 	
 				{_, query} = :gproc.await key
 			end 
-			Logger.debug "got #{inspect query}"
+			# Logger.debug "got #{inspect query}"
 
 			query
 		end
@@ -103,7 +103,7 @@ defmodule NameServer do
 	end
 
 	def unregister(session, parts) do 
-		for part <- parts, do: :gproc.unreg({:n, :g, {session, part}})
+		for part <- parts, do: if is_pid(:gproc.where {:n, :g, {session, part}}), do: :gproc.unreg({:n, :g, {session, part}})
 	end
 
 end
@@ -122,7 +122,7 @@ defmodule Endpoint do
 			%Msg{label: :init, payload: session} -> session 
 		end 
 
-		Logger.debug "ret = #{inspect ret}"
+		# Logger.debug "ret = #{inspect ret}"
 		ret 
 	end 
 
@@ -142,7 +142,7 @@ defmodule Endpoint do
 			_ -> :no
 		end
 
-		Logger.debug "ret = #{inspect ret}"
+		# Logger.debug "ret = #{inspect ret}"
 
 		# if failed, notify create()
 		if ret == :no do 
@@ -151,12 +151,12 @@ defmodule Endpoint do
 		# if succeeded, wait for other parts
 		else 
 			parts = NameServer.await(name, parts)
-			Logger.debug "parts = #{inspect parts, pretty: true}"
+			# Logger.debug "parts = #{inspect parts, pretty: true}"
 
 			# check all other runtime type data
 			ret = Enum.all?(parts, fn {_, othergp} -> othergp == gp end)
 
-			Logger.debug "ret = #{inspect ret}"
+			# Logger.debug "ret = #{inspect ret}"
 
 			# if all correct, notify create(), run loop
 			if ret == true do 
@@ -164,10 +164,11 @@ defmodule Endpoint do
 				session = %SessionData{name: name, self: self, parts: parts}
 				send parent, %Msg{label: :init, payload: session}
 
-				Logger.debug "session = #{inspect session, pretty: true}"
+				# Logger.debug "session = #{inspect session, pretty: true}"
 
-				NameServer.unregister(name, self)
+				# NameServer.unregister(name, self)
 
+				send self(), %Msg{label: :sync, ref: Utils.getref(session)}
 				loop session
 
 
@@ -288,8 +289,24 @@ defmodule Endpoint do
 
 		# Logger.info "#{inspect Process.info(self(), :messages), pretty: true}"
 
+
 		# # selfref = self.ref
 		receive do 
+			%Msg{label: :sync, ref: ^ref} = req ->
+				(for %PartData{pid: pid, part: part, ref: ref} <- parts, do: {pid, ref}) 
+				|> Enum.sort 
+				|> Enum.dedup
+				|> Enum.each(fn {pid, ref} -> 
+					send pid, req
+					receive do 
+						%Msg{label: :sync, ref: ^ref} -> :ok
+					end
+				end)
+
+				NameServer.unregister(session.name, self)
+				loop session 
+
+
 			%Msg{label: :send, ref: ^ref, payload: {to, payload}} = req -> 
 				send Utils.getpid(session, to), req
 				loop session 
@@ -366,6 +383,9 @@ defmodule Endpoint do
 				Logger.info "CLOSED"
 				:ok
 		end
+
+		
+		
 	end
 end
 
@@ -375,7 +395,7 @@ defmodule Session do
 
 	def init(name, self, parts, gp) do 		
 		session = Endpoint.create(name, self, parts, gp)
-		Logger.debug "#{inspect session}"
+		# Logger.debug "#{inspect session}"
 		session
 	end 
 

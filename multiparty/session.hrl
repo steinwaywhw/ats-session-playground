@@ -51,6 +51,9 @@ libsession__choose(Session, Choice)
 	-> 'Elixir.Endpoint':choose(Session, Choice).
 
 
+libsession_unregister(Name, Self)
+	-> 'Elixir.NameServer':unregister(Name, Self).
+
 % libsession_send(Payload, To, Session)      -> 'Elixir.Endpoint':send(Payload, To, Session).
 % libsession_receive(From, Session)          -> 'Elixir.Endpoint':recv(From, Session).
 

@@ -15,6 +15,8 @@ abstype chse (int, protocol, protocol)
 abstype seqs (protocol, protocol)
 abstype init (set)
 abstype rpt (int, protocol)
+abstype forasc (min: int, max: int, subprotocol: int->protocol)
+abstype fordes (min: int, max: int, subprotocol: int->protocol)
 
 infixr :: 
 #define :: seqs
@@ -119,13 +121,38 @@ fun receive
 	(!session (self, s, msg(x,y,a)::gp) >> session (self, s, gp), int x)
 	: a
 
-
-abstype foreach (int, bool, protocol)
-
-fun proj_foreach 
-	{self,s:set} {i:int} {p:protocol} {b:bool|b == true}
-	(!session (self, s, foreach (i, b, p)) >> session (self, s, p :: foreach (i+1, b, p)), int i)
+fun flatten
+	{self,s:set} {p,q,r:protocol}
+	(!session (self, s, (p::q)::r) >> session (self, s, p::q::r))
 	: void 
+
+fun foreach_asc_unroll
+	{self,s:set} {sub:int->protocol} {gp:protocol} {min,i:nat|i > min}
+	(!session (self, s, forasc(min,i,sub)::gp) >> session (self, s, forasc(min,i-1,sub)::sub(i)::gp))
+	: void 
+
+fun foreach_dec_unroll
+	{self,s:set} {sub: int->protocol} {gp:protocol} {i,max:nat|i < max}
+	(!session (self, s, fordes(i,max,sub)::gp) >> session (self, s, fordes(i+1,max,sub)::sub(i)::gp))
+	: void 
+
+fun foreach_asc_done
+	{self,s:set} {sub:int->protocol} {gp:protocol} {min:nat}
+	(!session (self, s, forasc(min,min,sub)::gp) >> session (self, s, sub(min)::gp))
+	: void 
+
+fun foreach_dec_done
+	{self,s:set} {sub: int->protocol} {gp:protocol} {max:nat}
+	(!session (self, s, fordes(max,max,sub)::gp) >> session (self, s, sub(max)::gp))
+	: void 
+
+
+//abstype foreach (int, bool, protocol)
+
+//fun proj_foreach 
+//	{self,s:set} {i:int} {p:protocol} {b:bool|b == true}
+//	(!session (self, s, foreach (i, b, p)) >> session (self, s, p :: foreach (i+1, b, p)), int i)
+//	: void 
 
 //fun msend
 //	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*sub(self,x)*(cap(y,self)==empty_set())} {n:nat|mem(n,x)} {gp:protocol} {a:vt@ype}
@@ -144,6 +171,11 @@ fun proj_foreach
 //	{self,s:set} {x,y:set|sub(s,x)*sub(s,y)*(cap(x,self)==empty_set())*(cap(y,self)!=empty_set())} {gp:protocol} {a:vt@ype}
 //	(!session (self, s, mmsg(x,y,a)::gp) >> session (self, s, gp), set x, set y)
 //	: list a
+
+fun skip 
+	{self,s:set} {gp:protocol}
+	(!session (self, s, skip() :: gp) >> session (self, s, gp))
+	: void 
 
 fun skip_msg
 	{self,s:set} {x,y:nat|(~mem(x,self) * ~mem(y,self)) + (x==y)} {gp:protocol} {a:vt@ype}
