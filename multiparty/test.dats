@@ -52,6 +52,17 @@ infixr (::) **
 #define PROTO2 (msg(BUYER2,BUYER3,int)::msg(BUYER2,BUYER3,session(range(BUYER2,BUYER2),range(0,2),chse(BUYER2,msg(BUYER2,SELLER,string)::msg(SELLER,BUYER2,string)::cls(),cls())))::cls())
 #define RT2 (rtmsg(BUYER2,BUYER3)**rtmsg(BUYER2,BUYER3)**rtcls())
 
+
+#define N 4
+#define M 4
+typedef MESH = 
+	forasc(0, N-2, lam (i:int) => 
+		forasc(0, M-2, lam (j:int) => 
+			msg(i*M+j, i*M+j+1, int) :: msg(i*M+j, (i+1)*M+j, int)))
+	:: forasc(0, M-2, lam (i:int) => msg((N-1)*M+i, (N-1)*M+i+1, int))
+	:: forasc(0, N-2, lam (i:int) => msg(i*M+M-1, (i+1)*M+M-1, int))
+
+
 extern fun inspect {a:t@ype} (a): string = "mac#libsession_inspect"
 extern fun debug (string): void = "mac#libsession_debug"
 extern fun info (string): void = "mac#libsession_info"
@@ -79,6 +90,54 @@ extern fun unregister {s:set} (string, erlval): void = "mac#libsession_unregiste
 (*************************)
 in 
 (*************************)
+
+
+extern fun mesh (): void = "mac#"
+implement mesh () = let 
+
+//	val rt = 
+//		(rtforasc(0, N-2, lam(i:int) => 
+//			rtforasc(0, M-2, lam(j:int) => 
+//				rtmsg(i*M+j, i*M+j+1) ** rtmsg(i*M+j, (i+1)*M+j))) 
+//		** rtforasc(0, M-2, lam(i:int) => rtmsg((N-1)*M+i, (N-1)*M+i+1)) 
+//		** rtforasc(0, N-2, lam(i:int) => rtmsg(i*M+M-1, (i+1)*M+M-1)))
+//		: rtsession (MESH)
+
+	val f = lam {i:nat} (i: int i) => rtmsg (0, i)
+//	val _ = $showtype f
+	val rt = (rtforasc(1,3,f))// : rtsession (forasc(1,3,lam(i:int) => msg(0,i,int)))
+//	val rt = $UN.cast{rtsession (MESH)} rt
+//	val name = make_name {range(0, M*N-1)} {MESH} (set_range (0, M*N-1), rt, "MESH")
+
+//	val rt = 
+
+//	fun worker {i,j:nat|i < N && j < M} (int i, int j): void = 
+//		init(name, set_add(empty_set(), i*M+j), 
+//			llam opt => 
+//				case+ opt of 
+//				| ~Nothing () => info "SESSION INIT FAILED")
+//				| ~Just (session) => let 
+//					fun {} unroll (n: int): void = 
+//						if n > 0 
+//						then let val _ = foreach_asc_unroll session in unroll (n-1) end
+//						else foreach_asc_done session
+
+//					fun {} flatten_outer (n: int, m: int): void = 
+//						if n = 0 
+//						then flatten_inner (n, m)
+//						else let val _ = flatten_inner (n, m) in flatten_outer (n-1, m) end
+
+//					and {} flatten_inner (n: int, m: int):
+//						if m = 0
+//						then 
+						
+
+
+//					val _ = unroll (N-2)
+//					val _ = unroll (M-2)
+
+in 
+end
 
 
 extern fun a (int): void = "mac#"
@@ -388,94 +447,4 @@ end
 (*************************)
 end 
 (*************************)
-////
-extern fun a (): void = "mac#"
-implement a () = let 
-
-	val name = make_name {msg(0,1,int) :: msg(1,2,int) :: msg(2,0,int) :: msg(0,~1,bool) :: chse (2,cls(),msg(2,~1,string)::cls())} ("test")
-	fun loop (s: option (session (0, msg(0,1,int)::msg(2,0,int)::msg(0,~1,bool)::chse(2,cls(),msg(2,0,string)::cls())))): void = 
-		case+ s of 
-		| ~None () => ()
-		| ~Some (session) => let 
-			val _ = send (session, 1, 10)
-			val x = receive (session, 2)
-			val _ = broadcast (session, if x = 10 then true else false)
-			val choice = offer (session, 2)
-			//if ...
-			//then broadcast 
-			//else broadcast
-		in 
-			case+ choice of 
-			| ChooseFst () => close session 
-			| ChooseSnd () => let 
-				val msg = receive (session, 2)
-				val _ = println! msg 
-			in 
-				close session 
-			end
-		end
-
-	val gp = rtmsg(0,1) ** rtmsg(1,2) ** rtmsg(2,0) ** rtmsg(0,~1) ** rtchse (2, rtcls(), rtmsg(2,~1) ** rtcls())
-
-	prval pf = proj_msg_from() ++ proj_msg_skip() -+ proj_msg_to() ++ proj_msg_broadcast_from() ++ proj_chse(proj_cls(), proj_msg_broadcast_to() ++ proj_cls())
-in 
-	accept (pf | name, 0, gp, llam session => loop session)
-end 
-//
-extern fun b (): void = "mac#"
-implement b () = let 
-
-	val name = make_name {msg(0,1,int) :: msg(1,2,int) :: msg(2,0,int) :: msg(0,~1,bool) :: chse(2,cls(),msg(2,~1,string)::cls())} ("test")
-	fun loop (s: option (session (1, msg(0,1,int)::msg(1,2,int)::msg(0,1,bool)::chse(2,cls(),msg(2,1,string)::cls())))): void = 
-		case+ s of 
-		| ~None () => ()
-		| ~Some (session) => let 
-			val x = receive (session, 0)
-			val _ = send (session, 2, x)
-			val ret = receive (session, 0)
-			val _ = println! ret
-			val choice = offer (session, 2)
-		in 
-			case+ choice of 
-			| ChooseFst () => close session
-			| ChooseSnd () => let 
-				val msg = receive (session, 2)
-				val _ = println! msg 
-			in 
-				close session 
-			end
-		end
-
-	val gp = rtmsg(0,1) ** rtmsg(1,2) ** rtmsg(2,0) ** rtmsg(0,~1) ** rtchse (2, rtcls(), rtmsg(2,~1) ** rtcls())
-z
-	prval pf = proj_msg_to() ++ proj_msg_from() ++ proj_msg_skip() -+ proj_msg_broadcast_to() ++ proj_chse(proj_cls(), proj_msg_broadcast_to() ++ proj_cls())
-in 
-	accept (pf | name, 1, gp, llam session => loop session)
-end 
-
-extern fun c (): void = "mac#"
-implement c () = let 
-
-	val name = make_name {msg(0,1,int) :: msg(1,2,int) :: msg(2,0,int) :: msg(0,~1,bool) :: chse(2,cls(),msg(2,~1,string)::cls())} ("test")
-	fun loop (s: option (session (2, msg(1,2,int)::msg(2,0,int)::msg(0,2,bool)::chse(2,cls(),msg(2,~1,string)::cls())))): void = 
-		case+ s of 
-		| ~None () => ()
-		| ~Some (session) => let 
-			val x = receive (session, 1)
-			val _ = send (session, 0, x)
-			val ret = receive (session, 0)
-			val _ = println! ret
-			val _ = choose_snd (session)
-			val _ = broadcast (session, "Hello")
-		in 
-			close session
-		end
-
-	val gp = rtmsg(0,1) ** rtmsg(1,2) ** rtmsg(2,0) ** rtmsg(0,~1) ** rtchse (2, rtcls(), rtmsg(2,~1) ** rtcls())
-
-	prval pf = proj_msg_skip() -+ proj_msg_to() ++ proj_msg_from() ++ proj_msg_broadcast_to() ++ proj_chse(proj_cls(), proj_msg_broadcast_from() ++ proj_cls())
-in 
-	loop (request (pf | name, 2, gp, 3))
-end 
-
 

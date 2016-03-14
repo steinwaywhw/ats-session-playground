@@ -78,6 +78,7 @@ datatype rtsession (protocol) =
 //| {x:nat} {p,q,r,t:protocol} rtchse4 (chse4 (x, p, q, r, t)) of (int x, rtsession p, rtsession q, rtsession r, rtsession t)
 | {p,q:protocol} rtseqs (seqs (p, q)) of (rtsession p, rtsession q)
 | {x:nat} {p:protocol} rtrpt (rpt (x, p)) of (rtsession p)
+| {min,max:nat|min <= max} {sub: int->protocol} rtforasc (forasc (min, max, sub)) of (int min, int max, ({i:nat} int i -> rtsession (sub i)))
 
 
 //vtypedef session (self:int, p:protocol) = @{session = pfsession p, rt = rtsession p, self = int self}

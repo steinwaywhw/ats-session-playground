@@ -100,6 +100,8 @@ extern fun test ():
 	)
 
 
+//#define N 3
+//#define N 
 
 in 
 
