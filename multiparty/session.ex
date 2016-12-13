@@ -17,32 +17,26 @@ defmodule Utils do
 
 	def set2erl(set, f) do 
 		ret = f.(set, [], fn x, s -> [x] ++ s end)
-		# Logger.debug "#{inspect ret}"
-
 		ret
 	end 
 
 	def getref(%SessionData{parts: parts}, part) do
 		%PartData{ref: ref} = parts |> Enum.find(fn %PartData{part: p} -> part == p end)
-
 		ref 
 	end
 
 	def getref(%SessionData{self: self, parts: parts}) do 
 		%PartData{ref: ref} = parts |> Enum.find(fn %PartData{part: part} -> part == hd(self) end)
-
 		ref 
 	end 
 
 	def getpid(%SessionData{parts: parts}, part) do 
 		%PartData{pid: pid} = parts |> Enum.find(fn %PartData{part: p} -> part == p end)
-
 		pid 
 	end 
 
 	def getpid(%SessionData{self: self, parts: parts}) do 
 		%PartData{pid: pid} = parts |> Enum.find(fn %PartData{part: part} -> part == hd(self) end)
-
 		pid 
  	end
 
@@ -57,13 +51,6 @@ defmodule Utils do
  	def info(string) do 
  		Logger.info string 
  	end 
-
-	# def isok(value) do 
-	# 	case value do 
-	# 		:ok -> true 
-	# 		_ -> false 
-	# 	end 
-	# end 
 
 	def isno(value) do 
 		case value do 
@@ -82,7 +69,6 @@ defmodule NameServer do
 	end
 
 	def await(session, parts) do 
-
 		table = Enum.map parts, fn part -> 
 			Logger.debug "waiting for #{part}"
 
@@ -94,11 +80,9 @@ defmodule NameServer do
 			else 	
 				{_, query} = :gproc.await key
 			end 
-			# Logger.debug "got #{inspect query}"
 
 			query
 		end
-		# table = Enum.map(table, fn {_, {partdata, gp}} -> {partdata, gp} end)
 		table
 	end
 
@@ -121,13 +105,10 @@ defmodule Endpoint do
 			%Msg{label: :init, payload: :no} -> :no 
 			%Msg{label: :init, payload: session} -> session 
 		end 
-
-		# Logger.debug "ret = #{inspect ret}"
 		ret 
 	end 
 
 	defp init(parent, name, self, parts, gp) do
-
 
 		# register pid as [{name, part} => partdata]
 		# all parts that belong to self, will have same ref
@@ -142,8 +123,6 @@ defmodule Endpoint do
 			_ -> :no
 		end
 
-		# Logger.debug "ret = #{inspect ret}"
-
 		# if failed, notify create()
 		if ret == :no do 
 			send parent, %Msg{label: :init, payload: ret}
@@ -151,26 +130,17 @@ defmodule Endpoint do
 		# if succeeded, wait for other parts
 		else 
 			parts = NameServer.await(name, parts)
-			# Logger.debug "parts = #{inspect parts, pretty: true}"
 
 			# check all other runtime type data
 			ret = Enum.all?(parts, fn {_, othergp} -> othergp == gp end)
-
-			# Logger.debug "ret = #{inspect ret}"
 
 			# if all correct, notify create(), run loop
 			if ret == true do 
 				parts = for {partdata, _} <- parts, do: partdata
 				session = %SessionData{name: name, self: self, parts: parts}
 				send parent, %Msg{label: :init, payload: session}
-
-				# Logger.debug "session = #{inspect session, pretty: true}"
-
-				# NameServer.unregister(name, self)
-
 				send self(), %Msg{label: :sync, ref: Utils.getref(session)}
 				loop session
-
 
 			# else, notify create()
 			else 
@@ -180,11 +150,7 @@ defmodule Endpoint do
 	end 
 
 	def send(%SessionData{self: self, parts: parts} = session, to, payload) do 
-		# if to >= 0 do 
 		send Utils.getpid(session), %Msg{label: :send, from: self(), ref: Utils.getref(session), payload: {to, payload}} 
-		# else
-			# send pid, %Msg{label: :broadcast, from: self(), ref: ref, payload: payload}
-		# end
 	end 
 
 	def recv(%SessionData{self: self, parts: parts} = session, from) do 
@@ -225,14 +191,9 @@ defmodule Endpoint do
 
 	def link(%SessionData{self: x} = sx, %SessionData{self: y} = sy) do 
 
-		Logger.debug "Linking #{inspect x} and #{inspect y}"
-		Logger.debug "#{inspect sx, pretty: true}"
-		Logger.debug "#{inspect sy, pretty: true}"
-
 		parts = for %PartData{part: part} <- sx.parts, do: part 
 
 		newself = (x ++ y) -- parts
-		Logger.debug "New Self #{inspect newself}"
 
 		wait = fn -> receive do 
 				session -> loop session 
@@ -241,10 +202,6 @@ defmodule Endpoint do
 
 		newpid = spawn_link fn -> wait.() end 
 		newref = make_ref()
-
-		Logger.debug "New Pid #{inspect newpid}"
-		Logger.debug "New Ref #{inspect newref}"
-
 
 		newparts = Enum.map parts, fn part -> 
 			cond do 
@@ -257,15 +214,8 @@ defmodule Endpoint do
 			end
 		end
 
-
-
 		newss = %SessionData{sx | parts: newparts, self: newself}
 		send newpid, newss
-
-		Logger.debug "#{inspect newss, pretty: true}"
-
-		# send Utils.getpid(sx), %Msg{label: :link, ref: Utils.getref(sx), payload: newss}
-		# send Utils.getpid(sy), %Msg{label: :link, ref: Utils.getref(sy), payload: newss}
 
 		(for %PartData{pid: pid, part: part} <- sx.parts, do: pid) 
 		|> Enum.sort 
@@ -284,13 +234,8 @@ defmodule Endpoint do
 	defp loop(session) do 
 		parts = session.parts
 		self = session.self
-		# self = parties[self]
 		ref = Utils.getref(session)
 
-		# Logger.info "#{inspect Process.info(self(), :messages), pretty: true}"
-
-
-		# # selfref = self.ref
 		receive do 
 			%Msg{label: :sync, ref: ^ref} = req ->
 				(for %PartData{pid: pid, part: part, ref: ref} <- parts, do: {pid, ref}) 
@@ -303,9 +248,9 @@ defmodule Endpoint do
 					end
 				end)
 
+				# safely unregister my own names after sync
 				NameServer.unregister(session.name, self)
 				loop session 
-
 
 			%Msg{label: :send, ref: ^ref, payload: {to, payload}} = req -> 
 				send Utils.getpid(session, to), req
@@ -322,10 +267,6 @@ defmodule Endpoint do
 						send self(), req
 						loop %SessionData{newsession | self: self}
 				end 
-
-		# 	%Msg{label: :broadcast, ref: ^ref, payload: payload} = req -> 
-		# 		for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, %Msg{req | label: :msg}
-		# 		loop session 
 
 			%Msg{label: :offer, ref: ^ref, payload: from} = req -> 
 
@@ -349,7 +290,6 @@ defmodule Endpoint do
 
 			%Msg{label: :forward, ref: ^ref, payload: newsession} = forward -> 
 				{_, len} = Process.info(self(), :message_queue_len)
-				# Logger.info "In #{inspect self()} Forwarding #{inspect Process.info(self(), :messages), pretty: true}"
 
 				if len > 0 do 
 					receive do 
@@ -370,22 +310,9 @@ defmodule Endpoint do
 
 
 			%Msg{label: :close, ref: ^ref} = req -> 
-				# for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, req
-				# Enum.each(parties, fn({party, endpoint}) -> 
-					# if party != session.self do
-						# receive do 
-							# %Msg{label: :close, ref: remote_ref} when ref != remote_ref -> :ok 
-						# end
-					# end 
-				# end)
-				# 
-				#  TODO need to move this to the beginning of session
 				Logger.info "CLOSED"
 				:ok
 		end
-
-		
-		
 	end
 end
 
@@ -395,73 +322,7 @@ defmodule Session do
 
 	def init(name, self, parts, gp) do 		
 		session = Endpoint.create(name, self, parts, gp)
-		# Logger.debug "#{inspect session}"
 		session
 	end 
-
-
-
-	# def request(name, gp, self, arity) do 	
-
-	# 	# register {name, party}
-	# 	ret = :global.register_name({name, self}, self())
-	# 	if ret == :no, do: raise "Registering #{name} for #{self} => #{self()} failed."
-
-	# 	# find all other parties [{name, party}] => [{party, parent_pid}]
-	# 	pids = for party <- 0 .. arity - 1, party != self, do: {party, :global.whereis_name {name, party}}
-	# 	if Enum.any?(pids, fn({_, parent_pid}) -> parent_pid == :undefined end), do: raise "Not all parties are online."
-
-	# 	# function for requesting endpoint
-	# 	f = fn({party, parent_pid}) -> 
-	# 		# send parent_pid, {:request, self(), {name, gp}}
-	# 		send parent_pid, %Msg{label: :request, from: self(), payload: {name, gp}}
-	# 		receive do
-	# 			%Msg{label: :accept, payload: %EndpointData{self: ^party} = endpoint} -> {endpoint.self, endpoint}
-	# 			%Msg{label: :reject, payload: {^party, reason}} -> raise "Request rejected: #{party} - #{reason}"
-	# 			# {:accept, %EndpointData{self: ^party} = endpoint} -> {endpoint.self, endpoint}
-	# 			# {:reject, {^party, reason}} -> raise "Request rejected: #{party} - #{reason}"
-	# 		end
-	# 	end
-
-	# 	# [{party, parent_pid}] |> [{party, endpoint}] |> %{party, endpoint} ++ %{self, endpoint}
-	# 	parties = Enum.map(pids, f) |> Map.new |> Map.put(self, Endpoint.create(self))
-
-	# 	# init all parties
-	# 	session = %SessionData{self: self, parties: parties}
-	# 	init session
-
-	# 	:global.unregister_name({name, self})
-
-	# 	# return endpoint
-	# 	session.parties[session.self]
-	# end 
-
-
-	# def accept(name, check, self, task) do 
-
-	# 	# register {name, party}
-	# 	ret = :global.register_name({name, self}, self())
-	# 	if ret == :no, do: raise "Registering #{name} for #{self} => #{inspect self()} failed."
-
-	# 	receive do 
-	# 		%Msg{label: :request, payload: {^name, gp}} = msg ->
-	# 		# {:request, req, {^name, gp}} -> 
-
-	# 			# check protocol
-	# 			if check.(gp) do
-	# 				endpoint = Endpoint.create self
-	# 				spawn fn -> task.(endpoint) end
-	# 				# send req, {:accept, endpoint}
-	# 				send msg.from, %Msg{label: :accept, payload: endpoint}
-	# 			else
-	# 				# send req, {:reject, {self, "Protocol mismatch."}}
-	# 				send msg.from, %Msg{label: :reject, payload: {self, "Protocol mismatch."}}
-	# 				accept(name, check, self, task)
-	# 			end
-	# 	end
-
-	# 	:global.unregister_name({name, self})
-	# 	:ok
-	# end 
 
 end 

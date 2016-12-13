@@ -10,14 +10,6 @@ ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc
 DEPLOY_TARGET=./app/lib
 DEPLOY_TARGET_BEAM=./app/_build/dev/lib/test/ebin/
 
-# session.erl: session.&>
-	# $(PATSCC) session.dats 
-	# atscc2erl -i session_dats.c > session.erl 
-	# erlc session.erl 
-	# 
-
-# lib: session.ex
-	# $(ELIXIRC) session.ex
 
 deploy: deploy_test deploy_session
 
