@@ -1,0 +1,52 @@
+v2.
+{<<"_build/dev/lib/app/ebin/Elixir.SessionData.beam">>,'Elixir.SessionData',
+ module,<<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.PartData','Elixir.Msg','Elixir.Endpoint',
+  'Elixir.Module','Elixir.Utils','Elixir.NameServer','Elixir.Session',
+  'Elixir.Kernel','Elixir.Protocol'],
+ [],[],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.PartData.beam">>,'Elixir.PartData',module,
+ <<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.SessionData','Elixir.Msg','Elixir.Endpoint',
+  'Elixir.Module','Elixir.Utils','Elixir.NameServer','Elixir.Session',
+  'Elixir.Kernel','Elixir.Protocol'],
+ [],[],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.Msg.beam">>,'Elixir.Msg',module,
+ <<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.SessionData','Elixir.PartData',
+  'Elixir.Endpoint','Elixir.Module','Elixir.Utils','Elixir.NameServer',
+  'Elixir.Session','Elixir.Kernel','Elixir.Protocol'],
+ [],[],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.Utils.beam">>,'Elixir.Utils',module,
+ <<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.SessionData','Elixir.PartData','Elixir.Msg',
+  'Elixir.Endpoint','Elixir.Module','Elixir.NameServer','Elixir.Session',
+  'Elixir.Logger','Elixir.Kernel','Elixir.Protocol'],
+ [erlang,'Elixir.Enum'],
+ [],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.NameServer.beam">>,'Elixir.NameServer',
+ module,<<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.SessionData','Elixir.PartData','Elixir.Msg',
+  'Elixir.Endpoint','Elixir.Module','Elixir.Utils','Elixir.Session',
+  'Elixir.Logger','Elixir.Kernel','Elixir.Protocol'],
+ [erlang,'Elixir.Enum','Elixir.String.Chars',gproc],
+ [],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.App.beam">>,'Elixir.App',module,
+ <<"lib/app.ex">>,
+ [test,'Elixir.NameServer','Elixir.Logger','Elixir.Kernel'],
+ [erlang,'Elixir.Node','Elixir.Enum',rpc,'Elixir.Application'],
+ [],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.Endpoint.beam">>,'Elixir.Endpoint',module,
+ <<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.SessionData','Elixir.PartData','Elixir.Msg',
+  'Elixir.Module','Elixir.Utils','Elixir.NameServer','Elixir.Session',
+  'Elixir.Logger','Elixir.Kernel','Elixir.Protocol'],
+ [erlang,'Elixir.Enum','Elixir.Process','Elixir.String.Chars',gproc],
+ [],nil}.
+{<<"_build/dev/lib/app/ebin/Elixir.Session.beam">>,'Elixir.Session',module,
+ <<"lib/session.ex">>,
+ ['Elixir.Kernel.Utils','Elixir.SessionData','Elixir.PartData','Elixir.Msg',
+  'Elixir.Endpoint','Elixir.Module','Elixir.Utils','Elixir.NameServer',
+  'Elixir.Logger','Elixir.Kernel','Elixir.Protocol'],
+ [erlang,'Elixir.Enum','Elixir.Process','Elixir.String.Chars',gproc],
+ [],nil}.
