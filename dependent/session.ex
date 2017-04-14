@@ -114,237 +114,281 @@ defmodule Channel do
 	require Message
 	require MyLogger
 
+
+	defp delegate_loop(self, dual, sub) do 
+		{dualpid, dualref} = dual 
+		{subpid, subref} = sub 
+
+		receive do 
+			req when Message.match(req, :send, self) ->
+				# MyLogger.log(:send, self(), dualpid)
+				send dualpid, req 
+				delegate_loop(self, dual, sub)
+		
+			req when Message.match(req, :receive, self) ->
+
+				{_, messages} = :erlang.process_info(self(), :messages)
+				has_it = List.foldl(messages, false, fn(msg, acc) -> acc or Message.match(msg, :send, dualref) end)
+
+				if has_it do 
+					receive do 
+						snd when Message.match(snd, :send, dualref) ->
+							# MyLogger.log(:received, self(), Message.origin(req))
+							send Message.origin(req), snd
+							delegate_loop(self, dual, sub)
+					end
+				else 
+					# MyLogger.log(:delegate_receive, self(), subpid)
+					send subpid, req
+					delegate_loop(self, dual, sub)
+				end
+				
+
+				
+
+			req when Message.match(req, :close, self) ->
+				# MyLogger.log(:delegate_close, self(), subpid)
+				send subpid, req
+
+				:closed 
+
+			# :delegate is telling an endpoint to enter the 
+			# delegate mode, by adding a third argument, sub-mailbox, to the loop
+			# req when Message.match(req, :delegate, dualref) -> 
+				# propogate :delegate to all subs
+				# MyLogger.log(:delegate_delegate, self(), subpid)
+				# send subpid, req
+
+				# delegate_loop(self, dual, sub)
+
+			# :mailbox is turning an endpoint into someone else's 
+			# sub-mailbox, by changing `self` to the new owner's ref
+			
+			# req when Message.match(req, :mailbox) -> 
+			# 	{_, newref} = Message.payload req 
+
+			# 	# propogate :mailbox to all subs
+			# 	MyLogger.log(:mailbox, self(), subpid)
+			# 	send subpid, req
+
+			# 	delegate_loop(newref, dual, sub)
+
+
+			# Delegate to the last sub
+			# 
+			# Say we are trying to link [B] and [C], and this is in [B] now.
+			# The last sub [a] will send out 
+			# 
+			# - :mailbox(signed as Bref) to [C] 
+			# - and :delegate(signed as Bref) to [A]
+			# 
+			# And [B] merely delegates the :link to [a]. [B] will also receive 
+			# :mailbox(signed as Cref) from [d], which is handled separately.
+			# 
+			#          <=>
+			# [A]<=>[B]   [C]<=>[D]
+			#  |     |     |     |
+			# [b]   [a]   [d]   [c]
+			req when Message.match(req, :link, self) ->
+
+				# change :link to :delegate_link
+				MyLogger.log(:delegate_link, self(), subpid)
+				out = Message.pack(:delegate_link, Message.origin(req), self, Message.payload(req)) 
+				send subpid, out
+
+				{cpid, cref} = Message.payload req 
+
+				# since it is top level, send delegate to [b]
+				MyLogger.log(:delegate, self(), dualpid)
+				send dualpid, Message.pack(:delegate, self(), self, Message.payload(req))
+
+				receive do 
+					mailbox when Message.match(mailbox, :mailbox, cref) -> 
+						{_, newref} = Message.payload req 
+
+						# propogate :mailbox to all subs
+						MyLogger.log(:mailbox, self(), subpid)
+						send subpid, req
+
+						delegate_loop(newref, dual, sub)
+				end
+
+			req when Message.match(req, :delegate_link, self) ->
+
+				MyLogger.log(:delegate_link, self(), subpid)
+				send subpid, req 
+
+				{cpid, cref} = Message.payload req 
+
+				receive do 
+					mailbox when Message.match(mailbox, :mailbox, cref) -> 
+						{_, newref} = Message.payload req 
+
+						# propogate :mailbox to all subs
+						MyLogger.log(:mailbox, self(), subpid)
+						send subpid, req
+
+						delegate_loop(newref, dual, sub)
+				end
+		end
+
+	end
+
 	@doc """
 	The main channel loop.
 
 	* `self`: this endpoint's ref
-	* `pid`: the other endpoint's pid 
-	* `other`: the other endpoint's ref
+	* `dual`: the other endpoint's pid and ref
 
 	In every iteration, the loop should peek into its mailbox to find and fulfill
-	requests from the owning process (thus the message should signed by "self")
+	requests from the owning process (thus the message should signed by "self").
 	"""
-	defp loop(self, pid, other) do 
+	defp loop(self, dual) do 
 
-		# IO.puts :stderr, "loop(#{inspect self}, #{inspect pid}, #{inspect other})"
+		{dualpid, dualref} = dual
 
 		receive do
 
-
 			# :send
 			# 
-			# The request will be forwarded to the dual endpoint
+			# The send request will always come from its owner, 
+			# before or after a link. 
+			# 
+			# The request will be forwarded to the dual endpoint, 
+			# before or after a link.
 			req when Message.match(req, :send, self) ->
-				# IO.puts :stderr, "-> #{Message.inspect req}"
-
-				# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect req}"
-				MyLogger.log(:send, self(), pid)
-				send pid, req 
-
-				# sync
-				receive do
-					reply when Message.match(reply, :receive, other) -> :ok
-				end
-
-				loop(self, pid, other)
+				# MyLogger.log(:send, self(), dualpid)
+				send dualpid, req 
+				loop(self, dual)
 
 
 			# :receive
 			# 
-			# This endpoint will peek into the mailbox to find the first
-			# message that matches {:send, _, other, _}, that is, signed by 
-			# the dual endpoint.
+			# There are two cases.
 			# 
-			# Also, this is one of the possible block point. We need to handle :cut
-			# as well. According to the state machine, after :cut, we should return to this
-			# :receive state. We do this by reply the :receive request.
+			# CASE 1: normal
+			# * got request from `self`
+			# * try to find a message of :send, from `other`
+			# * deliver it to the requester
+			# 
+			# CASE 2: turned into :delegate
+			# * got request from `self`
+			# * found :delegate instead
+			# * turn to :delegate mode and reply :receive. 
+			# 
+			# Note that, Because it is blocked at :receive, it should have no other
+			# requests from the owner. It is safe to reply the :receive request.
+			# 
 			req when Message.match(req, :receive, self) ->
-				# IO.puts :stderr, "-> #{Message.inspect req}"
 
 				receive do 
 					# found :send
-					snd when Message.match(snd, :send, other) ->
-						# IO.puts :stderr, "-> #{Message.inspect snd}"
-
-						# IO.puts :stderr, "#{inspect Message.origin(req)} <- #{Message.inspect snd}"
-						MyLogger.log(:send, self(), Message.origin(req))
+					# Case 1
+					snd when Message.match(snd, :send, dualref) ->
+						# MyLogger.log(:received, self(), Message.origin(req))
 						send Message.origin(req), snd
+						loop(self, dual)
 
-						# sync
-						send pid, req
+					# found :delegate
+					# Case 2
+					delegate when Message.match(delegate, :delegate, dualref) ->
+						{mboxpid, mboxref} = Message.payload delegate 
 
-						loop(self, pid, other)
-
-					# found :link
-					link when Message.match(link, :link, other) ->
-						# IO.puts :stderr, "-> #{Message.inspect link}"
-
-						# the request message is consumed
-						# need to replay current request by putting it back
-						# into the mailbox
-						# IO.puts :stderr, "#{inspect self()} <- #{Message.inspect req}"
-						MyLogger.log(:receive, self(), self())
+						# replay the :receive request
+						# MyLogger.log(:replay_receive, self(), self())
 						send self(), req
 
-						# start the new loop with new dual endpoint
-						{newpid, newother} = Message.payload link 
-						loop(self, newpid, newother)
+						# switch to delegate mode
+						delegate_loop(self, dual, Message.payload delegate)
 				end 
 
 
+			req when Message.match(req, :delegate, dualref) ->
+				{mboxpid, mboxref} = Message.payload req 
+
+				# switch to delegate mode
+				delegate_loop(self, dual, Message.payload req)
 
 			# :close
 			# 
 			# This is an synchronous version. 
 			# It simply closes.
 			req when Message.match(req, :close, self) ->
-				# IO.puts :stderr, "-> #{Message.inspect req}"
-				nil 
+				:closed  
 
-
-			# :offer
+			# :link at the last sub
 			# 
-			# This is another blocking point, we need to handle :link
-			# as well.
-			# req when Message.match(req, :offer, self) ->
-			# 	IO.puts :stderr, "-> #{Message.inspect req}"
-
-			# 	receive do 
-			# 		# found :choose
-			# 		choice when Message.match(choice, :choose, other) ->
-			# 			IO.puts :stderr, "-> #{Message.inspect choice}"
-
-			# 			IO.puts :stderr, "#{inspect Message.origin(req)} <- #{Message.inspect choice}"
-			# 			send Message.origin(req), choice
-
-			# 			loop(self, pid, other)
-
-			# 		# found :link
-			# 		link when Message.match(link, :link, other) -> 
-			# 			IO.puts :stderr, "-> #{Message.inspect link}"
-
-			# 			IO.puts :stderr, "#{inspect self()} <- #{Message.inspect req}"
-			# 			send self(), req 
-
-			# 			{newpid, newother} = Message.payload link 
-			# 			loop(self, newpid, newother) 			
-			# 	end 
-
-
-
-			# :choose
+			# Say we are trying to link [B] and [C], and this is in [a] now.
+			# As the last sub-mailbox, [a] will receive,
 			# 
-			# Just forward the request
-			# req when Message.match(req, :choose, self) ->
-			# 	IO.puts :stderr, "-> #{Message.inspect req}"
-
-			# 	IO.puts :stderr, "#{inspect pid} <- #{Message.inspect req}"
-			# 	send pid, req
-
-			# 	loop(self, pid, other)
- 
-			# :link
+			# - :link(signed as Bref), with info about [C]
 			# 
-			# Say the owning process is trying to link two endpoints, A and B. Then,
+			# and [a] will send,
 			# 
-			# * A will receive B's pid and ref, B will receive A's pid and ref
-			# * A will send B the info of A's dual, B will send A the info of B's dual
-			# * A will forward B's dual to A's dual, B will forward A's dual to B's dual
-			# * A will forward any remaining message to B as if A is the B's owning process
-			# * B will forward any remaining message to A as if B is the A's owning process
+			# - :mailbox(signed as Bref) about info of [A] to [C] 
+			# - and :delegate(signed as Bref) about info of [C] to [A]
+			# 
+			# [a] will receive a :mailbox(signed as Cref) about info of [D], 
+			# which is handled elsewhere.
+			# 
+			#          <=>
+			# [A]<=>[B]   [C]<=>[D]
+			#  |     |     |     |
+			# [b]   [a]   [d]   [c]
 			req when Message.match(req, :link, self) ->
-				# IO.puts :stderr, "-> #{Message.inspect req}"
  
- 				# receive B's pid and ref
-				{pid_b, ref_b} = Message.payload req 
+ 				# receive [C]'s pid and ref
+				{cpid, cref} = Message.payload req 
 
-				# send A's dual to B
-				out = Message.pack(:link, Message.origin(req), self, {pid, other})
-				# IO.puts :stderr, "#{inspect pid_b} <- #{Message.inspect out}"
-				MyLogger.log(:link, self(), pid_b)
-				send pid_b, out 
+				# send [A] to [C] so that [C] turns into a sub-mailbox of [A]
+				out = Message.pack(:mailbox, Message.origin(req), self, dual)
+				MyLogger.log(:mailbox, self(), cpid)
+				send cpid, out 
+
+				# send :delegate to [A] so that [A] can delegate :receive to [C]
+				MyLogger.log(:delegate, self(), dualpid)
+				out = Message.pack(:delegate, self(), self, Message.payload req)
+				send dualpid, out
 
 				receive do 
-					# receive B's dual
-					reply when Message.match(reply, :link, ref_b) -> 
-						# IO.puts :stderr, "-> #{Message.inspect reply}"
-
-						# forward B's dual to A's dual
-						{pid_b_dual, ref_b_dual} = Message.payload(reply)
-
-						out = Message.pack(:link, Message.origin(reply), self, Message.payload(reply))
-						# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-						MyLogger.log(:link, self(), pid)
-						send pid, out
-
-
-						# At this point, A/B's dual should have entered the new loop, and is blocked in 
-						# one of the blocking points. Or A/B's dual has closed. 
-						# 
-						# Also, at this point, A/B's owning process should have no requests left in A/B's 
-						# mailbox, since the endpoints are already consumed.
-						# 
-						# Need to forward any remaining messages (signed by `other`) to B (not B's dual), 
-						# and forward any messages from B (signed by `ref_b_dual`) to A's dual.
-						forward({self(), self}, {pid_b, ref_b}, {pid, other}, {pid_b_dual, ref_b_dual})
-						send self(), Message.pack(:close, self(), self, nil)
+					mailbox when Message.match(mailbox, :mailbox, cref) ->
+						{_, newref} = Message.payload req 
+						loop(newref, dual)
 				end
 
-			# When :link is the only message, but it is from the other endpoint
-			# we need to switch to a new loop with a new dual endpoint
-			# without replaying any message, because there's no need
-			link when Message.match(link, :link, other) ->
-				{newpid, newother} = Message.payload link 
-				loop(self, newpid, newother)
+			req when Message.match(req, :delegate_link, self) ->
+ 
+ 				# receive [C]'s pid and ref
+				{cpid, cref} = Message.payload req 
+
+				# send [A] to [C] so that [C] turns into a sub-mailbox of [A]
+				out = Message.pack(:mailbox, Message.origin(req), self, dual)
+				MyLogger.log(:mailbox, self(), cpid)
+				send cpid, out 
+
+				# send :delegate to [A] so that [A] can delegate :receive to [C]
+				# MyLogger.log(:delegate, self(), dualpid)
+				# out = Message.pack(:delegate, self(), self, Message.payload req)
+				# send dualpid, out
+
+				receive do 
+					mailbox when Message.match(mailbox, :mailbox, cref) ->
+						{_, newref} = Message.payload req 
+						loop(newref, dual)
+				end
+			# req when Message.match(req, :mailbox) -> 
+				# {_, newref} = Message.payload req 
+
+				# loop(newref, dual)
 		end
 
-		# IO.puts :stderr, "#{inspect self()} CLOSED"
 	end 
-
-
-	defp forward(a, b, a_dual, b_dual) do 
-		{_, len} = :erlang.process_info(self(), :message_queue_len)
-
-		{pid_a, ref_a} = a
-		{pid_b, ref_b} = b 
-		{pid_a_dual, ref_a_dual} = a_dual 
-		{pid_b_dual, ref_b_dual} = b_dual 
-
-		if len > 0 do 
-			receive do 
-				# when the message is signed by `ref_a_dual`
-				# it should be forwarded to B
-				{label, pid, ^ref_a_dual, payload} -> 
-					# IO.puts :stderr, "FORWARDING -> #{inspect label} #{inspect payload}"
-
-					out = Message.pack(label, pid, ref_a_dual, payload)
-					# IO.puts :stderr, "FORWARDING #{inspect pid_b} <- #{Message.inspect out} as #{inspect ref_a_dual}"
-					MyLogger.log(:forward, self(), pid_b)
-					send pid_b, out
-
-					forward(a, b, a_dual, b_dual)
-
-				# when the message is signed by `ref_b_dual`
-				# it should be forwarded to A's dual
-				{label, pid, ^ref_b_dual, payload} -> 
-					# IO.puts :stderr, "FORWARDING -> #{inspect label} #{inspect payload}"
-
-					out = Message.pack(label, pid, ref_b_dual, payload)
-					# IO.puts :stderr, "FORWARDING #{inspect pid_a_dual} <- #{Message.inspect out} as #{inspect ref_b_dual}"
-					MyLogger.log(:forward, self(), pid_a_dual)
-					send pid_a_dual, out
-
-					forward(a, b, a_dual, b_dual)
-			end 
-		end 
-	end
-
 
 	defp init() do 
 		receive do 
 			{:init, _, {self, pid, other}} ->
 				# IO.puts :stderr, "-> :init"
-				loop(self, pid, other)
+				loop(self, {pid, other})
 		end 
 	end 
 
@@ -387,7 +431,7 @@ defmodule Channel do
 		 
 		out = Message.pack(:send, self(), ref, msg)
 		# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-		MyLogger.log(:send, self(), pid)
+		# MyLogger.log(:send, self(), pid)
 		send pid, out
 	end
 
@@ -401,7 +445,7 @@ defmodule Channel do
 
 		out = Message.pack(:receive, self(), ref, nil)
 		# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-		MyLogger.log(:receive, self(), pid)
+		# MyLogger.log(:receive, self(), pid)
 		send pid, out
 		
 		receive do 
@@ -476,7 +520,7 @@ defmodule Channel do
 		{pid, ref} = channel 
 		out = Message.pack(:close, self(), ref, nil)
 		# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-		MyLogger.log(:close, self(), pid)
+		# MyLogger.log(:close, self(), pid)
 		send pid, out 
 	end
 end 
