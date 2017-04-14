@@ -121,7 +121,7 @@ defmodule Channel do
 
 		receive do 
 			req when Message.match(req, :send, self) ->
-				# MyLogger.log(:send, self(), dualpid)
+				MyLogger.log(:send, self(), dualpid)
 				send dualpid, req 
 				delegate_loop(self, dual, sub)
 		
@@ -133,13 +133,14 @@ defmodule Channel do
 				if has_it do 
 					receive do 
 						snd when Message.match(snd, :send, dualref) ->
-							# MyLogger.log(:received, self(), Message.origin(req))
+							MyLogger.log(:received, self(), Message.origin(req))
 							send Message.origin(req), snd
 							delegate_loop(self, dual, sub)
 					end
 				else 
-					# MyLogger.log(:delegate_receive, self(), subpid)
-					send subpid, req
+					MyLogger.log(:delegate_receive, self(), subpid)
+					out = Message.pack(:receive, Message.origin(req), subref, Message.payload(req))
+					send subpid, out
 					delegate_loop(self, dual, sub)
 				end
 				
@@ -147,43 +148,31 @@ defmodule Channel do
 				
 
 			req when Message.match(req, :close, self) ->
-				# MyLogger.log(:delegate_close, self(), subpid)
-				send subpid, req
+				MyLogger.log(:delegate_close, self(), subpid)
+				out = Message.pack(:close, Message.origin(req), subref, Message.payload(req))
+				send subpid, out
 
 				:closed 
 
 			# :delegate is telling an endpoint to enter the 
 			# delegate mode, by adding a third argument, sub-mailbox, to the loop
-			# req when Message.match(req, :delegate, dualref) -> 
+			req when Message.match(req, :delegate, self) -> 
 				# propogate :delegate to all subs
-				# MyLogger.log(:delegate_delegate, self(), subpid)
-				# send subpid, req
+				MyLogger.log(:delegate_delegate, self(), subpid)
+				out = Message.pack(:delegate, Message.origin(req), subref, Message.payload(req))
+				send subpid, out
 
-				# delegate_loop(self, dual, sub)
+				delegate_loop(self, dual, sub)
 
-			# :mailbox is turning an endpoint into someone else's 
-			# sub-mailbox, by changing `self` to the new owner's ref
 			
-			# req when Message.match(req, :mailbox) -> 
-			# 	{_, newref} = Message.payload req 
-
-			# 	# propogate :mailbox to all subs
-			# 	MyLogger.log(:mailbox, self(), subpid)
-			# 	send subpid, req
-
-			# 	delegate_loop(newref, dual, sub)
-
-
 			# Delegate to the last sub
 			# 
 			# Say we are trying to link [B] and [C], and this is in [B] now.
 			# The last sub [a] will send out 
 			# 
-			# - :mailbox(signed as Bref) to [C] 
-			# - and :delegate(signed as Bref) to [A]
+			# - :delegate(signed as Aref) to [A]
 			# 
-			# And [B] merely delegates the :link to [a]. [B] will also receive 
-			# :mailbox(signed as Cref) from [d], which is handled separately.
+			# And [B] merely delegates the :link to [a]. 
 			# 
 			#          <=>
 			# [A]<=>[B]   [C]<=>[D]
@@ -191,45 +180,11 @@ defmodule Channel do
 			# [b]   [a]   [d]   [c]
 			req when Message.match(req, :link, self) ->
 
-				# change :link to :delegate_link
 				MyLogger.log(:delegate_link, self(), subpid)
-				out = Message.pack(:delegate_link, Message.origin(req), self, Message.payload(req)) 
+				out = Message.pack(:link, Message.origin(req), subref, Message.payload(req)) 
 				send subpid, out
 
-				{cpid, cref} = Message.payload req 
-
-				# since it is top level, send delegate to [b]
-				MyLogger.log(:delegate, self(), dualpid)
-				send dualpid, Message.pack(:delegate, self(), self, Message.payload(req))
-
-				receive do 
-					mailbox when Message.match(mailbox, :mailbox, cref) -> 
-						{_, newref} = Message.payload req 
-
-						# propogate :mailbox to all subs
-						MyLogger.log(:mailbox, self(), subpid)
-						send subpid, req
-
-						delegate_loop(newref, dual, sub)
-				end
-
-			req when Message.match(req, :delegate_link, self) ->
-
-				MyLogger.log(:delegate_link, self(), subpid)
-				send subpid, req 
-
-				{cpid, cref} = Message.payload req 
-
-				receive do 
-					mailbox when Message.match(mailbox, :mailbox, cref) -> 
-						{_, newref} = Message.payload req 
-
-						# propogate :mailbox to all subs
-						MyLogger.log(:mailbox, self(), subpid)
-						send subpid, req
-
-						delegate_loop(newref, dual, sub)
-				end
+				delegate_loop(self, dual, sub)
 		end
 
 	end
@@ -257,7 +212,7 @@ defmodule Channel do
 			# The request will be forwarded to the dual endpoint, 
 			# before or after a link.
 			req when Message.match(req, :send, self) ->
-				# MyLogger.log(:send, self(), dualpid)
+				MyLogger.log(:send, self(), dualpid)
 				send dualpid, req 
 				loop(self, dual)
 
@@ -285,17 +240,16 @@ defmodule Channel do
 					# found :send
 					# Case 1
 					snd when Message.match(snd, :send, dualref) ->
-						# MyLogger.log(:received, self(), Message.origin(req))
+						MyLogger.log(:received, self(), Message.origin(req))
 						send Message.origin(req), snd
 						loop(self, dual)
 
 					# found :delegate
 					# Case 2
-					delegate when Message.match(delegate, :delegate, dualref) ->
-						{mboxpid, mboxref} = Message.payload delegate 
+					delegate when Message.match(delegate, :delegate, self) ->
 
 						# replay the :receive request
-						# MyLogger.log(:replay_receive, self(), self())
+						MyLogger.log(:replay_receive, self(), self())
 						send self(), req
 
 						# switch to delegate mode
@@ -303,9 +257,7 @@ defmodule Channel do
 				end 
 
 
-			req when Message.match(req, :delegate, dualref) ->
-				{mboxpid, mboxref} = Message.payload req 
-
+			req when Message.match(req, :delegate, self) ->
 				# switch to delegate mode
 				delegate_loop(self, dual, Message.payload req)
 
@@ -321,15 +273,11 @@ defmodule Channel do
 			# Say we are trying to link [B] and [C], and this is in [a] now.
 			# As the last sub-mailbox, [a] will receive,
 			# 
-			# - :link(signed as Bref), with info about [C]
+			# - :link(signed as aref), with info about [C]
 			# 
 			# and [a] will send,
 			# 
-			# - :mailbox(signed as Bref) about info of [A] to [C] 
-			# - and :delegate(signed as Bref) about info of [C] to [A]
-			# 
-			# [a] will receive a :mailbox(signed as Cref) about info of [D], 
-			# which is handled elsewhere.
+			# - and :delegate(signed as Aref) about info of [C] to [A]
 			# 
 			#          <=>
 			# [A]<=>[B]   [C]<=>[D]
@@ -337,49 +285,13 @@ defmodule Channel do
 			# [b]   [a]   [d]   [c]
 			req when Message.match(req, :link, self) ->
  
- 				# receive [C]'s pid and ref
-				{cpid, cref} = Message.payload req 
-
-				# send [A] to [C] so that [C] turns into a sub-mailbox of [A]
-				out = Message.pack(:mailbox, Message.origin(req), self, dual)
-				MyLogger.log(:mailbox, self(), cpid)
-				send cpid, out 
-
 				# send :delegate to [A] so that [A] can delegate :receive to [C]
 				MyLogger.log(:delegate, self(), dualpid)
-				out = Message.pack(:delegate, self(), self, Message.payload req)
+				out = Message.pack(:delegate, self(), dualref, Message.payload req)
 				send dualpid, out
 
-				receive do 
-					mailbox when Message.match(mailbox, :mailbox, cref) ->
-						{_, newref} = Message.payload req 
-						loop(newref, dual)
-				end
+				loop(self, dual)
 
-			req when Message.match(req, :delegate_link, self) ->
- 
- 				# receive [C]'s pid and ref
-				{cpid, cref} = Message.payload req 
-
-				# send [A] to [C] so that [C] turns into a sub-mailbox of [A]
-				out = Message.pack(:mailbox, Message.origin(req), self, dual)
-				MyLogger.log(:mailbox, self(), cpid)
-				send cpid, out 
-
-				# send :delegate to [A] so that [A] can delegate :receive to [C]
-				# MyLogger.log(:delegate, self(), dualpid)
-				# out = Message.pack(:delegate, self(), self, Message.payload req)
-				# send dualpid, out
-
-				receive do 
-					mailbox when Message.match(mailbox, :mailbox, cref) ->
-						{_, newref} = Message.payload req 
-						loop(newref, dual)
-				end
-			# req when Message.match(req, :mailbox) -> 
-				# {_, newref} = Message.payload req 
-
-				# loop(newref, dual)
 		end
 
 	end 
@@ -387,7 +299,6 @@ defmodule Channel do
 	defp init() do 
 		receive do 
 			{:init, _, {self, pid, other}} ->
-				# IO.puts :stderr, "-> :init"
 				loop(self, {pid, other})
 		end 
 	end 
@@ -409,9 +320,6 @@ defmodule Channel do
 		
 		to_a = {:init, self(), {ref_a, pid_b, ref_b}}
 		to_b = {:init, self(), {ref_b, pid_a, ref_a}}
-
-		# IO.puts :stderr, "#{inspect pid_a} <- #{inspect to_a}"
-		# IO.puts :stderr, "#{inspect pid_b} <- #{inspect to_b}"
 		
 		MyLogger.log(:init, self(), pid_a)
 		MyLogger.log(:init, self(), pid_b)
@@ -430,8 +338,7 @@ defmodule Channel do
 		{pid, ref} = channel 
 		 
 		out = Message.pack(:send, self(), ref, msg)
-		# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-		# MyLogger.log(:send, self(), pid)
+		MyLogger.log(:send, self(), pid)
 		send pid, out
 	end
 
@@ -444,44 +351,14 @@ defmodule Channel do
 		{pid, ref} = channel
 
 		out = Message.pack(:receive, self(), ref, nil)
-		# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-		# MyLogger.log(:receive, self(), pid)
+		MyLogger.log(:receive, self(), pid)
 		send pid, out
 		
 		receive do 
-			# send
 			msg when Message.match(msg, :send) -> 
-				# IO.puts :stderr, "-> #{Message.inspect msg}"
 				Message.payload msg
 		end 
 	end
-
-	@doc """
-	Offering a choice.
-
-	1. Send a `{:offer}` to this end of the channel.
-	2. It will be forwarded to the other end.
-	3. The other end will send a `{:choose}` back.
-	4. Now we will receive the `{:choose}` from this end of the channel.
-	"""
-	# def channel_offer(channel, fn_a, fn_b) do 
-	# 	{pid, ref} = channel 
-
-	# 	out = Message.pack(:offer, self(), ref, nil)
-	# 	IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-	# 	send pid, out	
-
-	# 	receive do 
-	# 		msg when Message.match(msg, :choose) ->
-	# 			IO.puts :stderr, "-> #{Message.inspect msg}"
-
-	# 			case Message.payload(msg) do 
-	# 				0 -> fn_a.(channel)
-	# 				1 -> fn_b.(channel)
-	# 			end 
-	# 	end 
-	# end
-
 
 	@doc """
 	Link two channels dual ends, as bidirectional forwarding.
@@ -491,36 +368,18 @@ defmodule Channel do
 		{pid_b, ref_b} = channel_b
 
 		to_a = Message.pack(:link, self(), ref_a, channel_b)
-		# IO.puts :stderr, "#{inspect pid_a} <- #{Message.inspect to_a}"
 		MyLogger.log(:link, self(), pid_a)
 		send pid_a, to_a
 
 		to_b = Message.pack(:link, self(), ref_b, channel_a)
-		# IO.puts :stderr, "#{inspect pid_b} <- #{Message.inspect to_b}"
 		MyLogger.log(:link, self(), pid_b)
 		send pid_b, to_b
 	end
 
-	# defp channel_choose(channel, choice) do 
-	# 	{pid, ref} = channel 
-	# 	out = Message.pack(:choose, self(), ref, choice)
-	# 	IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-	# 	send pid, out
-	# end 
-
-	# def channel_choose_fst(channel) do 
-	# 	channel_choose(channel, 0)
-	# end 
-
-	# def channel_choose_snd(channel) do 
-	# 	channel_choose(channel, 1)
-	# end
-
 	def channel_close(channel) do 
 		{pid, ref} = channel 
 		out = Message.pack(:close, self(), ref, nil)
-		# IO.puts :stderr, "#{inspect pid} <- #{Message.inspect out}"
-		# MyLogger.log(:close, self(), pid)
+		MyLogger.log(:close, self(), pid)
 		send pid, out 
 	end
 end 
