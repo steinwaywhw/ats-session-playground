@@ -20,5 +20,5 @@ test: lib teststub.dats session.dats
 
 
 
-# test: dep_queue.dats
-	# patsopt -tc --constraint-export -d $< | patsolve_smt2 -i | tee ./constraints | z3 -t:2000 -smt2 -in 2>&1 | tee output | em -fgreen "^unsat" | em "^sat|^timeout|^unknown" #| grep -B1 "unknown"
+z3: quantification.dats
+	patsopt -tc --constraint-export -d $< | patsolve_smt2 -i | tee ./constraints | z3 -t:2000 -smt2 -in 2>&1 | tee output #| em -fgreen "^unsat" | em "^sat|^timeout|^unknown" #| grep -B1 "unknown"

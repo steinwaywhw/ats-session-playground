@@ -5,38 +5,61 @@ staload UN = "prelude/SATS/unsafe.sats"
 #define S 0
 
 
-stadef fp (a:t@ype) = lam (p:int->protocol):int->protocol => lam (n:int):protocol => pite (n>0, pbrch(C, pmsg(C,a)::p(n+1), pmsg(S,a)::p(n-1)), pmsg(C,a)::p(n+1))
-stadef queue (a:t@ype) = pfix2 (fp a)
+stadef fp (a:t@ype) = 
+	lam (p:int->stype):int->stype => 
+		lam (n:int):stype => pbrch(C, pmsg(C,a)::p(n+1), pite(n>0, pmsg(S,a)::p(n-1), pend(0)))
+
+stadef queue (a:t@ype, n:int) = pfix2 (fp a, n)
+stadef queue (a:t@ype) = pquan(0,lam n=>queue(a,n))
 
 
-extern fun empty {a:t@ype} (): chan(C, (queue a) 0)
-extern fun elem  {a:t@ype} {n:nat} (chan(C, (queue a) n), a): chan(C, (queue a) (n+1))
+extern fun empty {a:t@ype} (): chan(C, queue(a,0))
+extern fun elem  {a:t@ype} {n:nat} (chan(C, queue(a,n)), a): chan(C, queue(a,n+1))
 
 implement empty {a} () = let 
-	fun server (out: chan(S, (queue a) 0)): void = let 
-		val _ = recurse2 {S} {fp a} {0} out 
-		val _ = ite_false out
-		val x = recv out 
-		val tail = empty {a} ()
-		val q = elem {a} {0} (tail, x)
-	in 	
-		cut (q, out)
+	fun server (out: chan(S, queue(a,0))): void = let 
+		prval _ = recurse2 out 
+		val choice = offer out
+	in 
+		case+ choice of 
+		| ~Right () => 	
+			let 
+				prval _ = ite_false out
+			in 
+				close out
+			end
+		| ~Left ()  => 
+			let 
+				val x = recv out 
+				val tail = empty {a} ()
+				val inp = elem {a} (tail, x)
+			in 
+				cut (inp, out)
+			end
 	end
+
 in 
 	create (llam out => server out)
 end
 
+
 implement elem {a} {n} (queue, e)  = let 
-	fun server (out: chan(S, (queue a) (n+1)), inp: chan(C, (queue a) n)): void = let 
-		val _ = recurse2 {S} {fp a} {n+1} out 
-		val _ = ite_true out 
-		val c = offer out
+	fun server {n:nat} (out: chan(S, queue(a,n+1)), inp: chan(C, queue(a,n))): void = let 
+		prval _ = recurse2 out 
+		val choice = offer out
 	in 
-		case+ c of 
-		| ~Right() => (send (out, e); cut {S} {(queue a) n} (out, inp))
+		case+ choice of 
+		| ~Right() => 
+			let 
+				prval _ = ite_true out
+				val _ = send (out, e)
+			in 
+				cut (out, inp)
+			end
 		| ~Left() => 
 			let 
 				val y = recv out 
+				prval _ = recurse2 inp
 				val _ = choose (inp, Left())
 				val _ = send (inp, y)
 			in 
@@ -48,47 +71,78 @@ in
 end
 
 
-implement main0 () = () where {
-	val queue = empty {int} ()
-	val _ = recurse2 {C} {fp int} {0} queue 
-	val _ = ite_false queue 
-	val _ = send (queue, 1)
 
-	val _ = recurse2 {C} {fp int} {0+1} queue 
-	
+vtypedef queue (a:t@ype, n:int, r:int) = '(int n, chan(r, queue(a,n)))
+extern fun nil {a:t@ype} (): queue(a,0,C)
+extern fun enq {a:t@ype} {n:nat} (queue(a,n,C), a): queue(a,n+1,C)
+extern fun deq {a:t@ype} {n:nat} (queue(a,n+1,C)): '(a, queue(a,n,C))
+extern fun free {a:t@ype} (queue(a,0,C)): void
+extern fun len {a:t@ype} {n:nat} (!queue(a,n,C)): int n
 
-	val _ = $UN.cast2void queue
+implement nil {a} () = '(0, empty {a} ())
+
+implement enq {a} {n} (queue, x) = let 
+	val '(n, ch) = queue
+	prval _ = recurse2 ch 
+	val _ = choose (ch, Left ())
+	val _ = send (ch, x)
+in 
+	'(n+1,ch)
+end
+
+implement deq {a} {n} (queue) = let 
+	val '(n, ch) = queue 
+	prval _ = recurse2 ch 
+	val _ = choose (ch, Right())
+	prval _ = ite_true ch
+	val x = recv ch 
+in 
+	'(x, '(n-1,ch))
+end
+
+implement free {a} (queue) = let 
+	val '(n, ch) = queue 
+	prval _ = recurse2 ch 
+	val _ = choose (ch, Right ())
+	prval _ = ite_false ch 
+in 
+	wait ch
+end
+
+implement len {a} {n} (queue) = queue.0
+
+extern fun printall {n:nat} (queue (int, n, C)): void
+implement printall {n} (queue) = 
+	if len {int} queue = 0
+	then (println! "nil"; free {int} queue)
+	else 
+		let 
+			val '(x, queue) = deq {int} {n-1} queue 
+			val _ = println! x
+		in 
+			printall queue 
+		end
+
+extern fun test (): void
+implement test () = () where {
+
+	val queue = nil {int} ()
+
+	val queue = enq {int} (queue, 1)
+	val queue = enq {int} (queue, 2)
+	val queue = enq {int} (queue, 3)
+	val queue = enq {int} (queue, 4)
+	val queue = enq {int} (queue, 5)
+	val queue = enq {int} (queue, 6)
+	val queue = enq {int} (queue, 7)
+	val queue = enq {int} (queue, 8)
+	val queue = enq {int} (queue, 9)
+	val queue = enq {int} (queue, 10)
+
+	val _ = printall queue
 
 }
 
-////
-
-implement elem {a} (inp, x) = let 
-	fun server (out: chan(S,queue(a)), inp: chan(C,queue(a))): void = let 
-		val _ = recurse out
-		val c = offer out
-	in 
-		case+ c of 
-		| ~Left() => 
-			let
-				val y = recv out
-				val _ = recurse inp
-				val _ = choose (inp, Left())
-				val _ = send (inp, y) 
-			in 
-				server (out, inp)
-			end
-		| ~Right() => 
-			let 
-				val _ = choose (out, Right())
-				val _ = send (out, x)
-			in 
-				cut (out, inp)
-			end
-	end
-in 
-	create (llam out => server (out, inp))
-end
 
 
 

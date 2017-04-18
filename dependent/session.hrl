@@ -15,6 +15,8 @@ libsession__offer(Channel)       -> 'Elixir.Channel':channel_receive(Channel).
 libsession__choose(Channel, Msg) -> 'Elixir.Channel':channel_send(Channel, Msg).
 
 libsession__close(Channel)       -> 'Elixir.Channel':channel_close(Channel).
+libsession__wait(Channel)        -> 'Elixir.Channel':channel_close(Channel).
+
 libsession__cut(ChnA, ChnB)		 -> 'Elixir.Channel':channel_link(ChnA, ChnB).
 
 libsession__spawn_link(Clo)      -> 'Elixir.Kernel':spawn_link(ats2erlpre_cloref2fun0(Clo)).

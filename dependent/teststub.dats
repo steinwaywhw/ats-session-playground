@@ -2,7 +2,7 @@
 
 #define ATS_DYNLOADFLAG 0
 #include "contrib/libatscc2erl/ATS2-0.3.2/staloadall.hats"
-#include "test5.dats"
+#include "quantification.dats"
 
 %{^
 -module(test).
