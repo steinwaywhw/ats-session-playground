@@ -9,21 +9,21 @@
 
 defmodule MyLogger do 
 	def log(label, src, dest) do
-		pid = Process.whereis(:mylogger)
-		if pid == nil do
-			pid = spawn_link fn -> loop(1) end
-			Process.register(pid, :mylogger)
-		end
+		# pid = Process.whereis(:mylogger)
+		# if pid == nil do
+		# 	pid = spawn_link fn -> loop(1) end
+		# 	Process.register(pid, :mylogger)
+		# end
 
-		send pid, {label, src, dest}
+		# send pid, {label, src, dest}
 	end
 
 	def loop(counter) do 
-		receive do
-	 		{label, src, dest} -> 
-	 			IO.puts :stderr, "\"#{Kernel.inspect src}\" -> \"#{Kernel.inspect dest}\" [label=\"#{counter}#{Kernel.inspect label}\"]"
-	 			loop(counter+1)
-		end
+		# receive do
+	 # 		{label, src, dest} -> 
+	 # 			IO.puts :stderr, "\"#{Kernel.inspect src}\" -> \"#{Kernel.inspect dest}\" [label=\"#{counter}#{Kernel.inspect label}\"]"
+	 # 			loop(counter+1)
+		# end
 	end
 end
 

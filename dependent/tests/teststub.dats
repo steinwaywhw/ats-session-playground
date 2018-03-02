@@ -2,7 +2,9 @@
 
 #define ATS_DYNLOADFLAG 0
 #include "contrib/libatscc2erl/ATS2-0.3.2/staloadall.hats"
-#include "queue.dats"
+//#include "simple.dats"
+//#include "dep_testeq.dats"
+#include "poly.dats"
 
 %{^
 -module(test).

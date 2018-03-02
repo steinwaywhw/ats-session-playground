@@ -32,6 +32,7 @@ end
 implement client {a} (ch) = let 
 	prval _ = exify ch
 	val len = recv ch 
+
 	val _ = assertloc (len >= 0)
 	val data = arrayref_make_elt (i2sz len, $UN.cast{a} 0)
 
