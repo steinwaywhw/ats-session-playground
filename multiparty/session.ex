@@ -1,122 +1,316 @@
 
-
-
-
 defmodule SessionData do 
-	defstruct self: nil, parties: %{}
+	defstruct name: nil, self: nil, parts: nil 
 end
 
-defmodule EndpointData do 
-	defstruct self: nil, pid: nil, ref: nil
-end
+defmodule PartData do 
+	defstruct part: nil, ref: nil, pid: nil
+end 
 
 defmodule Msg do 
 	defstruct label: nil, from: nil, ref: nil, payload: nil
 end
 
 
+defmodule Utils do 
+	require Logger
+
+	def set2erl(set, f) do 
+		ret = f.(set, [], fn x, s -> [x] ++ s end)
+		ret
+	end 
+
+	def getref(%SessionData{parts: parts}, part) do
+		%PartData{ref: ref} = parts |> Enum.find(fn %PartData{part: p} -> part == p end)
+		ref 
+	end
+
+	def getref(%SessionData{self: self, parts: parts}) do 
+		%PartData{ref: ref} = parts |> Enum.find(fn %PartData{part: part} -> part == hd(self) end)
+		ref 
+	end 
+
+	def getpid(%SessionData{parts: parts}, part) do 
+		%PartData{pid: pid} = parts |> Enum.find(fn %PartData{part: p} -> part == p end)
+		pid 
+	end 
+
+	def getpid(%SessionData{self: self, parts: parts}) do 
+		%PartData{pid: pid} = parts |> Enum.find(fn %PartData{part: part} -> part == hd(self) end)
+		pid 
+ 	end
+
+ 	def tostring(anything) do 
+ 		Kernel.inspect(anything, pretty: true)
+ 	end 
+
+ 	def debug(string) do 
+ 		Logger.debug string 
+ 	end 
+
+ 	def info(string) do 
+ 		Logger.info string 
+ 	end 
+
+	def isno(value) do 
+		case value do 
+			:no -> true 
+			_ -> false 
+		end 
+	end  
+end 
+
+
+defmodule NameServer do 
+	require Logger
+
+	def register(session, part, partdata) do 
+		:gproc.reg({:n, :g, {session, part}}, partdata)
+	end
+
+	def await(session, parts) do 
+		table = Enum.map parts, fn part -> 
+			Logger.debug "waiting for #{part}"
+
+			key = {:n, :g, {session, part}}
+			query = :gproc.where key
+
+			if is_pid(query) do 
+				query = :gproc.lookup_value key 
+			else 	
+				{_, query} = :gproc.await key
+			end 
+
+			query
+		end
+		table
+	end
+
+	def unregister(session, parts) do 
+		for part <- parts, do: if is_pid(:gproc.where {:n, :g, {session, part}}), do: :gproc.unreg({:n, :g, {session, part}})
+	end
+
+end
+
 defmodule Endpoint do 
 
-	def create(self) do 
-		%EndpointData{self: self, ref: make_ref(), pid: spawn fn -> init(self) end}
+	require NameServer
+	require Logger	
+
+	def create(name, self, parts, gp) do 
+		parent = self()
+		pid = spawn_link fn -> init(parent, name, self, parts, gp) end
+
+		ret = receive do 
+			%Msg{label: :init, payload: :no} -> :no 
+			%Msg{label: :init, payload: session} -> session 
+		end 
+		ret 
 	end 
 
-	def send(payload, to, %EndpointData{self: self, pid: pid, ref: ref}) do 
-		if to >= 0 do 
-			send pid, %Msg{label: :send, from: self(), ref: ref, payload: {to, payload}} 
-		else
-			send pid, %Msg{label: :broadcast, from: self(), ref: ref, payload: payload}
+	defp init(parent, name, self, parts, gp) do
+
+		# register pid as [{name, part} => partdata]
+		# all parts that belong to self, will have same ref
+		ret = try do 
+			pid = self()
+			ref = make_ref()
+
+			Enum.each self, fn s -> 
+				NameServer.register(name, s, {%PartData{part: s, ref: ref, pid: pid}, gp})
+			end
+		rescue 
+			_ -> :no
+		end
+
+		# if failed, notify create()
+		if ret == :no do 
+			send parent, %Msg{label: :init, payload: ret}
+
+		# if succeeded, wait for other parts
+		else 
+			parts = NameServer.await(name, parts)
+
+			# check all other runtime type data
+			ret = Enum.all?(parts, fn {_, othergp} -> othergp == gp end)
+
+			# if all correct, notify create(), run loop
+			if ret == true do 
+				parts = for {partdata, _} <- parts, do: partdata
+				session = %SessionData{name: name, self: self, parts: parts}
+				send parent, %Msg{label: :init, payload: session}
+				send self(), %Msg{label: :sync, ref: Utils.getref(session)}
+				loop session
+
+			# else, notify create()
+			else 
+				send parent, %Msg{label: :init, payload: :no}
+			end
 		end
 	end 
 
-	def recv(from, %EndpointData{self: self, pid: pid, ref: ref}) do 
-		send pid, %Msg{label: :recv, from: self(), ref: ref, payload: from}
+	def send(%SessionData{self: self, parts: parts} = session, to, payload) do 
+		send Utils.getpid(session), %Msg{label: :send, from: self(), ref: Utils.getref(session), payload: {to, payload}} 
+	end 
 
+	def recv(%SessionData{self: self, parts: parts} = session, from) do 
+		send Utils.getpid(session), %Msg{label: :recv, from: self(), ref: Utils.getref(session), payload: from}
+
+		pid = Utils.getpid(session)
 		receive do
-			%Msg{label: :recv, payload: payload} -> payload 
+			%Msg{label: :recv, payload: payload, from: ^pid} -> payload 
 		end
 	end 
 
-	def choose(choice, %EndpointData{self: self, pid: pid, ref: ref}) do
-		send pid, %Msg{label: :choose, from: self(), ref: ref, payload: choice}
+	def choose(%SessionData{self: self, parts: parts} = session, choice) do 
+		send Utils.getpid(session), %Msg{label: :choose, from: self(), ref: Utils.getref(session), payload: choice}
 
 		choice
 	end 
 
-	def offer(from, %EndpointData{self: self, pid: pid, ref: ref}) do 
-		send pid, %Msg{label: :offer, from: self(), ref: ref, payload: from}
+	def offer(%SessionData{self: self, parts: parts} = session, from) do 
+		choices = Enum.map self, fn part -> 
+			send Utils.getpid(session), %Msg{label: :offer, from: self(), ref: Utils.getref(session), payload: from} 
 
-		receive do 
-			%Msg{label: :offer, payload: choice} -> choice 
+			pid = Utils.getpid(session)
+			receive do 
+				%Msg{label: :offer, payload: choice, from: ^pid} -> choice 
+			end
 		end
+
+		hd choices
 	end 
 
-	def close(%EndpointData{self: self, pid: pid, ref: ref}) do 
+	def close(%SessionData{self: self, parts: parts} = session) do 
+		ref = Utils.getref(session)
+		pid = Utils.getpid(session)
 		send pid, %Msg{label: :close, from: self(), ref: ref}
 
 		:ok
 	end 
 
-	def link() do 
-	end 
+	def link(%SessionData{self: x} = sx, %SessionData{self: y} = sy) do 
 
+		parts = for %PartData{part: part} <- sx.parts, do: part 
 
-	def init(self) do 
-		receive do 
-			%Msg{label: :init, payload: %SessionData{self: ^self} = session} -> loop session
-			# {:init, %SessionData{self: ^self} = session} -> loop session
+		newself = (x ++ y) -- parts
+
+		wait = fn -> receive do 
+				session -> loop session 
+			end 
 		end
+
+		newpid = spawn_link fn -> wait.() end 
+		newref = make_ref()
+
+		newparts = Enum.map parts, fn part -> 
+			cond do 
+				Enum.member? newself, part -> 
+					%PartData{part: part, pid: newpid, ref: newref}
+				Enum.member? parts -- x, part -> 
+					%PartData{part: part, pid: Utils.getpid(sx, part), ref: Utils.getref(sx, part)}
+				Enum.member? parts -- y, part -> 
+					%PartData{part: part, pid: Utils.getpid(sy, part), ref: Utils.getref(sy, part)}
+			end
+		end
+
+		newss = %SessionData{sx | parts: newparts, self: newself}
+		send newpid, newss
+
+		(for %PartData{pid: pid, part: part} <- sx.parts, do: pid) 
+		|> Enum.sort 
+		|> Enum.dedup
+		|> Enum.each(fn pid -> send pid, %Msg{label: :link, ref: Utils.getref(sx), payload: newss} end)
+
+		(for %PartData{pid: pid, part: part} <- sy.parts, do: pid) 
+		|> Enum.sort 
+		|> Enum.dedup
+		|> Enum.each(fn pid -> send pid, %Msg{label: :link, ref: Utils.getref(sy), payload: newss} end)
+
+		newss
 	end 
 
 
 	defp loop(session) do 
-		parties = session.parties
+		parts = session.parts
 		self = session.self
-		self = parties[self]
-		ref = self.ref
+		ref = Utils.getref(session)
 
-		# selfref = self.ref
 		receive do 
+			%Msg{label: :sync, ref: ^ref} = req ->
+				(for %PartData{pid: pid, part: part, ref: ref} <- parts, do: {pid, ref}) 
+				|> Enum.sort 
+				|> Enum.dedup
+				|> Enum.each(fn {pid, ref} -> 
+					send pid, req
+					receive do 
+						%Msg{label: :sync, ref: ^ref} -> :ok
+					end
+				end)
+
+				# safely unregister my own names after sync
+				NameServer.unregister(session.name, self)
+				loop session 
+
 			%Msg{label: :send, ref: ^ref, payload: {to, payload}} = req -> 
-				send parties[to].pid, %Msg{req | label: :msg, payload: payload}
+				send Utils.getpid(session, to), req
 				loop session 
 
 			%Msg{label: :recv, ref: ^ref, payload: from} = req -> 
 
-				target = parties[from].ref
+				target = Utils.getref(session, from)
 				receive do 
-					%Msg{label: :msg, ref: ^target, payload: payload} = msg -> 
-						send req.from, %Msg{msg | label: :recv}
+					%Msg{label: :send, ref: ^target, payload: {_, payload}} = msg -> 
+						send req.from, %Msg{msg | label: :recv, from: self(), payload: payload}
+						loop session 
+					%Msg{label: :link, ref: _, payload: newsession} -> 
+						send self(), req
+						loop %SessionData{newsession | self: self}
 				end 
-				loop session 
-
-			%Msg{label: :broadcast, ref: ^ref, payload: payload} = req -> 
-				for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, %Msg{req | label: :msg}
-				loop session 
 
 			%Msg{label: :offer, ref: ^ref, payload: from} = req -> 
 
-				target = parties[from].ref 
+				target = Utils.getref(session, from)
 				receive do 
 					%Msg{label: :choose, ref: ^target, payload: choice} = msg -> 
-						send req.from, %{msg | label: :offer}
+						send req.from, %{msg | label: :offer, from: self()}
+						loop session 
+					%Msg{label: :link, ref: _, payload: newsession} -> 
+						send self(), req 
+						loop %SessionData{newsession | self: self}
 				end 
-				loop session 
 
 			%Msg{label: :choose, ref: ^ref, payload: choice} = req -> 
-				for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, req
+				for %PartData{pid: pid, part: part} <- parts, Enum.member?(self, part) == false, do: send pid, req
+				loop session 
+		 		
+			%Msg{label: :link, ref: ^ref, payload: newsession} = req -> 
+				send self(), %Msg{label: :forward, ref: ref, payload: newsession}
 				loop session 
 
-			%Msg{label: :close, ref: ^ref} = req -> 
-				for {party, endpoint} <- parties, party != session.self, do: send endpoint.pid, req
-				Enum.each(parties, fn({party, endpoint}) -> 
-					if party != session.self do
-						receive do 
-							%Msg{label: :close, ref: remote_ref} when ref != remote_ref -> :ok 
-						end
-					end 
-				end)
+			%Msg{label: :forward, ref: ^ref, payload: newsession} = forward -> 
+				{_, len} = Process.info(self(), :message_queue_len)
 
+				if len > 0 do 
+					receive do 
+						%Msg{label: :send, ref: _, payload: {to, _}} = req ->
+							send Utils.getpid(newsession, to), req
+							send self(), forward
+							loop session 
+
+						%Msg{label: :choose, ref: _, payload: _} = req -> 
+							for to <- self, do: send Utils.getpid(newsession, to), req
+							send self(), forward
+							loop session 
+					end
+				else 
+					Logger.info "TERM"
+					:ok
+				end
+
+
+			%Msg{label: :close, ref: ^ref} = req -> 
+				Logger.info "CLOSED"
 				:ok
 		end
 	end
@@ -124,86 +318,11 @@ end
 
 
 defmodule Session do 
+	require Logger 
 
-	# defstruct self: nil, parties: %{}
-
-	def make_name(name) do 
-		String.to_atom name
-	end 
-
-	defp init(session) do 
-		f = fn({party, %EndpointData{self: self, pid: pid, ref: ref}}) -> 
-			# send pid, {:init, %SessionData{session | self: party}}
-			send pid, %Msg{label: :init, payload: %SessionData{session | self: party}}
-		end
-
-		Enum.each(session.parties, f)
-
-		:ok
-	end
-
-
-	def request(name, gp, self, arity) do 	
-
-		# register {name, party}
-		ret = :global.register_name({name, self}, self())
-		if ret == :no, do: raise "Registering #{name} for #{self} => #{self()} failed."
-
-		# find all other parties [{name, party}] => [{party, parent_pid}]
-		pids = for party <- 0 .. arity - 1, party != self, do: {party, :global.whereis_name {name, party}}
-		if Enum.any?(pids, fn({_, parent_pid}) -> parent_pid == :undefined end), do: raise "Not all parties are online."
-
-		# function for requesting endpoint
-		f = fn({party, parent_pid}) -> 
-			# send parent_pid, {:request, self(), {name, gp}}
-			send parent_pid, %Msg{label: :request, from: self(), payload: {name, gp}}
-			receive do
-				%Msg{label: :accept, payload: %EndpointData{self: ^party} = endpoint} -> {endpoint.self, endpoint}
-				%Msg{label: :reject, payload: {^party, reason}} -> raise "Request rejected: #{party} - #{reason}"
-				# {:accept, %EndpointData{self: ^party} = endpoint} -> {endpoint.self, endpoint}
-				# {:reject, {^party, reason}} -> raise "Request rejected: #{party} - #{reason}"
-			end
-		end
-
-		# [{party, parent_pid}] |> [{party, endpoint}] |> %{party, endpoint} ++ %{self, endpoint}
-		parties = Enum.map(pids, f) |> Map.new |> Map.put(self, Endpoint.create(self))
-
-		# init all parties
-		session = %SessionData{self: self, parties: parties}
-		init session
-
-		:global.unregister_name({name, self})
-
-		# return endpoint
-		session.parties[session.self]
-	end 
-
-
-	def accept(name, check, self, task) do 
-
-		# register {name, party}
-		ret = :global.register_name({name, self}, self())
-		if ret == :no, do: raise "Registering #{name} for #{self} => #{inspect self()} failed."
-
-		receive do 
-			%Msg{label: :request, payload: {^name, gp}} = msg ->
-			# {:request, req, {^name, gp}} -> 
-
-				# check protocol
-				if check.(gp) do
-					endpoint = Endpoint.create self
-					spawn fn -> task.(endpoint) end
-					# send req, {:accept, endpoint}
-					send msg.from, %Msg{label: :accept, payload: endpoint}
-				else
-					# send req, {:reject, {self, "Protocol mismatch."}}
-					send msg.from, %Msg{label: :reject, payload: {self, "Protocol mismatch."}}
-					accept(name, check, self, task)
-				end
-		end
-
-		:global.unregister_name({name, self})
-		:ok
+	def init(name, self, parts, gp) do 		
+		session = Endpoint.create(name, self, parts, gp)
+		session
 	end 
 
 end 

@@ -15,8 +15,8 @@ implement server (ch) = let
     prval _ = exify (ch)
 	val a = recv (ch)
 	val b = recv (ch)
-	val _ = send (ch, a = b)
-//	val _ = send (ch, ~(a != b))
+//	val _ = send (ch, a = b)
+	val _ = send (ch, ~(a = b))
 in 
 	wait ch 
 end
@@ -27,6 +27,10 @@ implement client (ch) = let
 	val _ = send (ch, 1) 
 	val _ = send (ch, 1) 
 	val c = recv (ch)
+
+//	fun t (b: bool(true)): void = ()
+//	val _ = t c
+
 	val _ = println! c
 in 
 	close ch 

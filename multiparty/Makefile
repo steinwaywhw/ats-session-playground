@@ -1,32 +1,54 @@
-PATSCC=patscc -ccats --tlcalopt-disable -IIATS ${PATSHOMERELOC} 
-PATSCCTC=patscc -tcats -IIATS ${PATSHOMERELOC}
+
+PATSOPT=patsopt -IATS ${PATSHOMERELOC} -IATS ~/Git/ats-utils
+PATSOLVE=patsolve_z3 
+PATSCC=patscc -ccats --tlcalopt-disable -IIATS ${PATSHOMERELOC} -IIATS ~/Git/ats-utils
+PATSCCTC=patscc -tcats -IIATS ${PATSHOMERELOC} -IIATS ~/Git/ats-utils
+ATS2ERL=atscc2erl
 ERLC=erlc +debug_info
 ELIXIRC=ERL_COMPILER_OPTIONS=debug_info elixirc 
 
-# session.erl: session.&>
-	# $(PATSCC) session.dats 
-	# atscc2erl -i session_dats.c > session.erl 
-	# erlc session.erl 
-	# 
+DEPLOY_TARGET=./app/lib
+DEPLOY_TARGET_BEAM=./app/_build/dev/lib/test/ebin/
 
-lib: session.ex draft.dats
-	rm -f Elixir.Endpoint.beam
-	rm -f Elixir.Session.beam
-	rm -f Elixir.Message.beam
-	rm -f Elixir.SessionData.beam
-	rm -f Elixir.EndpointData.beam
-	$(ELIXIRC) session.ex
-	# $(PATSCC) draft.dats 
-	# atscc2erl -i draft_dats.c > draft.erl 
-	# $(ERLC) session.erl 
-	# rm session.erl 
 
-test: lib test.dats 
-	$(PATSCC) test.dats
-	atscc2erl -i test_dats.c > test.erl 
+deploy: deploy_test deploy_session
+
+deploy_test: test.dats deploy_session
+	$(PATSOPT) -tc --constraint-export -d test.dats | $(PATSOLVE) -i
+	$(PATSCC) --constraint-ignore test.dats
+	$(ATS2ERL) -i test_dats.c > test.erl 
 	$(ERLC) test.erl 
-	rm test.erl
+	mkdir -p $(DEPLOY_TARGET_BEAM)
+	mv test.beam $(DEPLOY_TARGET_BEAM)
+	# mv test.erl $(DEPLOY_TARGET)
+	# rm -rf test_dats.c test.erl session.erl
 
+deploy_session: session.dats session.hrl session.ex 
+	$(PATSOPT) -tc --constraint-export -d session.dats | $(PATSOLVE) -i
+	$(PATSCC) --constraint-ignore session.dats 
+	$(ATS2ERL) -i session_dats.c > session.erl
+	# mv session.erl $(DEPLOY_TARGET)
+	cp session.ex $(DEPLOY_TARGET)
+	# rm -rf session_dats.c 
+
+
+# test: lib test.dats 
+	# $(PATSOPT) -tc --constraint-export -d test.dats | $(PATSOLVE) -i
+	# $(PATSCC) test.dats
+	# $(ATS2ERL) -i test_dats.c > test.erl 
+	# $(ERLC) test.erl 
+	# rm test.erl
+
+tc: session.sats session.dats
+	$(PATSOPT) -tc --constraint-export -s session.sats | $(PATSOLVE) -i
+	$(PATSOPT) -tc --constraint-export -d session.dats | $(PATSOLVE) -i
+	$(PATSOPT) -tc --constraint-export -d test.dats | $(PATSOLVE) -i
+
+
+showtype: session.dats 
+	$(PATSCC) --constraint-ignore session.dats 
+	$(PATSCC) --constraint-ignore test.dats 
+	rm session_dats.c test_dats.c
 # server: lib server.dats
 # 	$(PATSCC) server.dats
 # 	atscc2erl -i server_dats.c > server.erl 
@@ -41,8 +63,12 @@ test: lib test.dats
 # 	$(ERLC) test_link_client.erl test_link_server.erl test_link_middle.erl 
 # 	rm test_link_client.erl test_link_server.erl test_link_middle.erl 
 
+testerl: test_datatype.dats 
+	$(PATSCC) test_datatype.dats 
+	$(ATS2ERL) -i test_datatype_dats.c > test_datatype.erl 	
+
+
 clean:
 	rm -f *.beam 
 	rm -f *ats.c 
-	rm -f *.dat 
-	rm test.erl 
+	rm -f *.erl

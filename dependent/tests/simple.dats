@@ -11,7 +11,8 @@ extern fun client (chan (0, proto)): void
 implement server (ch) = let 
 	val a = recv (ch)
 	val b = recv (ch)
-	val _ = send (ch, a = b)
+//    val b = 2
+//	val _ = send (ch, a = b)
 in 
 	wait ch 
 end

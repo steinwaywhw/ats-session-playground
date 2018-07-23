@@ -8,7 +8,7 @@ stadef fp (a:t@ype) =
 	lam (p:int->stype):int->stype => 
 		lam (n:int):stype => pbrch(C, pmsg(C,a)::p(n+1), pite(n>0, pmsg(S,a)::p(n-1), pend(0)))
 
-stadef queue (a:t@ype, n:int) = pfix2 (fp a, n)
+stadef queue (a:t@ype, n:int) = pfix2 (fp(a), n)
 
 
 extern fun empty {a:t@ype} (): chan(C, queue(a,0))

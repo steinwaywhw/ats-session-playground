@@ -4,7 +4,8 @@
 #include "contrib/libatscc2erl/ATS2-0.3.2/staloadall.hats"
 //#include "simple.dats"
 //#include "dep_testeq.dats"
-#include "poly.dats"
+//#include "poly.dats"
+#include "dep_array.dats"
 
 %{^
 -module(test).

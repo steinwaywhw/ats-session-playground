@@ -24,5 +24,6 @@ test: lib tests/teststub.dats session.dats
 cleanall:
 	rm -rf ${OUTPUT}/*.erl ${OUTPUT}/*ats.c ${OUTPUT}/*.beam
 
-# z3: poly.dats
-	# patsopt -tc --constraint-export -d $< | patsolve_smt2 -i | tee ./constraints | z3 -t:2000 -smt2 -in 2>&1 | tee output #| em -fgreen "^unsat" | em "^sat|^timeout|^unknown" #| grep -B1 "unknown"
+z3: prepare tests/teststub.dats
+	cd ${OUTPUT} && patsopt -tc --constraint-export -d teststub.dats | patsolve_smt2 -i | tee ./constraints | z3 -t:2000 -smt2 -in 2>&1 | tee output | em -fgreen "^unsat" | em "^sat|^timeout|^unknown" #| grep -B1 "unknown"
+
